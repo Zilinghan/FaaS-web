@@ -27,7 +27,7 @@ def doit():
     transfer_token = dependent_tokens.by_resource_server[
         'transfer.api.globus.org']['access_token']
     http_token = dependent_tokens.by_resource_server[
-        '60a0c6af-3f73-453c-afbe-c8504fc428b6']['access_token']
+        app.config['GRAPH_ENDPOINT_ID']]['access_token']
 
     selected_ids = request.form.getlist('datasets')
     selected_year = request.form.get('year')
