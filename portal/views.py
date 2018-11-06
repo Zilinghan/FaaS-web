@@ -264,7 +264,7 @@ def transfer():
             'folderlimit': 1
         }
 
-        browse_endpoint = 'https://www.globus.org/app/browse-endpoint?{}' \
+        browse_endpoint = 'https://app.globus.org/file-manager?{}' \
             .format(urlencode(params))
 
         session['form'] = {
