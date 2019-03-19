@@ -230,7 +230,7 @@ def browse(dataset_id=None, endpoint_id=None, endpoint_path=None):
 
     https_server = ep['https_server']
     endpoint_uri = https_server + endpoint_path if https_server else None
-    webapp_xfer = 'https://www.globus.org/app/transfer?' + \
+    webapp_xfer = 'https://app.globus.org/file-manager?' + \
         urlencode(dict(origin_id=endpoint_id, origin_path=endpoint_path))
 
     return render_template('browse.jinja2', endpoint_uri=endpoint_uri,
