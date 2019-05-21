@@ -152,7 +152,7 @@ def authcallback():
             is_authenticated=True,
             name=id_token.get('name', ''),
             email=id_token.get('email', ''),
-            institution=id_token.get('institution', ''),
+            institution=id_token.get('organization', ''),
             primary_username=id_token.get('preferred_username'),
             primary_identity=id_token.get('sub'),
         )
