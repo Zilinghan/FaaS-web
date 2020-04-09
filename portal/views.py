@@ -15,8 +15,6 @@ except ImportError:
     from urllib import urlencode
 
 
-
-
 @app.route('/', methods=['GET'])
 def home():
     """Home page - play with it if you must!"""
