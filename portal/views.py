@@ -1,19 +1,20 @@
-from flask import (abort, flash, redirect, render_template, request,
-                   session, url_for)
 import requests
+from flask import (abort, flash, redirect, render_template, request, session,
+                   url_for)
+from globus_sdk import (RefreshTokenAuthorizer, TransferAPIError,
+                        TransferClient, TransferData)
+
+from portal import app, database, datasets
+from portal.decorators import authenticated
+from portal.utils import (get_portal_tokens, get_safe_redirect,
+                          load_portal_client)
 
 try:
     from urllib.parse import urlencode
 except ImportError:
     from urllib import urlencode
 
-from globus_sdk import (TransferClient, TransferAPIError,
-                        TransferData, RefreshTokenAuthorizer)
 
-from portal import app, database, datasets
-from portal.decorators import authenticated
-from portal.utils import (load_portal_client, get_portal_tokens,
-                          get_safe_redirect)
 
 
 @app.route('/', methods=['GET'])
@@ -128,7 +129,11 @@ def authcallback():
     redirect_uri = url_for('authcallback', _external=True)
 
     client = load_portal_client()
-    client.oauth2_start_flow(redirect_uri, refresh_tokens=True)
+    client.oauth2_start_flow(
+        redirect_uri,
+        refresh_tokens=True,
+        requested_scopes=app.config['USER_SCOPES']
+    )
 
     # If there's no "code" query string parameter, we're in this route
     # starting a Globus Auth login flow.
