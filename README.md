@@ -11,6 +11,8 @@ that demonstrates how to authenticate users with Globus [Auth](https://docs.glob
 The second application, the "Service," is an example "resource server" that demonstrates how a research portal can offload tasks to a separate service that has the capability to perform tasks on behalf of users. All of the Service code can be found in the `service/` directory.
 
 ## Getting Started
+The Globus Sample Data Portal requires Python 3.6 or newer.
+
 #### Set up your environment.
 * [OS X](#os-x)
 * [Linux](#linux-ubuntu)
@@ -31,8 +33,7 @@ The second application, the "Service," is an example "resource server" that demo
 
 ##### Environment Setup
 
-* `sudo easy_install pip`
-* `sudo pip install virtualenv`
+* Install python3
 * `git clone https://github.com/globus/globus-sample-data-portal`
 * `cd globus-sample-data-portal`
 * `virtualenv venv`
@@ -54,7 +55,7 @@ The second application, the "Service," is an example "resource server" that demo
 ##### Environment Setup
 
 * `sudo apt-get update`
-* `sudo apt-get install python-pip`
+* `sudo apt-get install python3-pip`
 * `sudo pip install virtualenv`
 * `sudo apt-get install git`
 * `git clone https://github.com/globus/globus-sample-data-portal`
@@ -77,7 +78,7 @@ The second application, the "Service," is an example "resource server" that demo
 
 ##### Environment Setup
 
-* Install Python (<https://www.python.org/downloads/windows/>)
+* Install Python3 (<https://www.python.org/downloads/windows/>)
 * `pip install virtualenv`
 * Install git (<https://git-scm.com/downloads>)
 * `git clone https://github.com/globus/globus-sample-data-portal`
