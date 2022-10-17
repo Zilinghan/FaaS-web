@@ -9,7 +9,7 @@ that demonstrates how to authenticate users with Globus [Auth](https://docs.glob
 The second application, the "Service," is an example "resource server" that demonstrates how a research portal can offload tasks to a separate service that has the capability to perform tasks on behalf of users. All of the Service code can be found in the `service/` directory.
 
 ## Getting Started
-The Globus Sample Data Portal requires Python 3.6 or newer.
+The Globus Sample Data Portal requires Python 3.9 or newer.
 
 #### Set up your environment.
 * [OS X](#os-x)
