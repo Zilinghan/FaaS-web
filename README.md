@@ -18,6 +18,7 @@ The Globus Sample Data Portal requires Python 3.9 or newer.
 * [Linux](#linux-ubuntu)
 * [Windows](#windows)
 * [Amazon EC2](#amazon-ec2)
+* [Reverse Proxy with Nginx](#reverse-proxy-with-nginx)
 
 #### Create your own App registration for use in the Portal. 
 * Visit the [Globus Developer Pages](https://developers.globus.org) to register an App.
