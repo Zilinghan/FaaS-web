@@ -8,6 +8,8 @@ that demonstrates how to authenticate users with Globus [Auth](https://docs.glob
 
 The second application, the "Service," is an example "resource server" that demonstrates how a research portal can offload tasks to a separate service that has the capability to perform tasks on behalf of users. All of the Service code can be found in the `service/` directory.
 
+`Note`: Both applications are configured with client credentials created for demo purposes only.
+
 ## Getting Started
 The Globus Sample Data Portal requires Python 3.9 or newer.
 
@@ -16,6 +18,7 @@ The Globus Sample Data Portal requires Python 3.9 or newer.
 * [Linux](#linux-ubuntu)
 * [Windows](#windows)
 * [Amazon EC2](#amazon-ec2)
+* [Reverse Proxy with Nginx](#reverse-proxy-with-nginx)
 
 #### Create your own App registration for use in the Portal. 
 * Visit the [Globus Developer Pages](https://developers.globus.org) to register an App.
@@ -117,3 +120,16 @@ The Globus Sample Data Portal requires Python 3.9 or newer.
 
 * `./run_service.py`
 * API is located at `https://localhost:5100/api`
+
+### Reverse Proxy with Nginx
+
+Deploying and fully configuring Nginx is out of scope of this document. However, if you wish to use Nginx as a reverse proxy, you can use the location block below:
+```
+  location / {
+    proxy_pass https://localhost:5000/;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Prefix /;
+  }
+```
