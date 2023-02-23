@@ -1,0 +1,121 @@
+{%extends "base.jinja2"%}
+
+{%block title%}Dashboard{%endblock%}
+
+{%block body%}
+  {%include "header.jinja2"%}
+
+  <div class="container">
+
+    <div class="page-header">
+      <h1>Dashboard</h1>
+    </div>
+
+    <div class="intro-header">
+      <h2>Servers</h2>
+    </div>
+
+    <div class="row">
+      <div class="col-md-12">
+        <table class="table">
+          
+            <th class="col-md-5 text-left">
+              <div class="create-btn">
+              {%if all_server_groups%}
+                Server Name
+              {%endif%}
+              <a href="{{url_for('create_server')}}" target="_blank"> 
+                <i class="fa fa-plus "></i>&nbsp;Create Server
+              </a>
+              </div>
+            </th>
+          
+          {%if all_server_groups%}
+            {%for group in all_server_groups%}
+              <tr>
+                <td class="col-md-5 text-left">
+                  <div class="group-row">
+                    <div class="group-name-container">
+                      <img src="{{url_for('static', filename='img/server.png')}}"/>
+                      <a href="{{url_for('browse_2', server_group_id=group['id'])}}" class="group-name">
+                        {{group["name"]}}
+                      </a>
+                    </div>
+                    
+                    <div class="logging-container">
+                      <div class="logging">
+                        <img src="{{url_for('static', filename='img/globus.png')}}"/>
+                        <a href="https://app.globus.org/groups/{{group['id']}}" target="_blank">Group Manage</a>
+                      </div>
+                      <div class="logging">
+                        <img src="{{url_for('static', filename='img/log.png')}}"/>
+                        <a href="{{url_for('appfl_log_page', server_group_id=group['id'])}}">Logfile</a>
+                      </div>
+                      <div class="logging">
+                        <img src="{{url_for('static', filename='img/tb.png')}}"/>
+                        <a href="{{url_for('tensorboard_log_page', server_group_id=group['id'])}}">Tensorboard</a>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {%endfor%}
+          {%else%}
+            <p>No servers found.</p>
+          {%endif%}
+        </table>
+      </div>
+    </div>
+
+    <div class="intro-header">
+      <h2>Clients</h2>
+    </div>
+
+    <div class="row">
+      <div class="col-md-12">
+        <table class="table">
+          {%if all_client_groups%}
+            <th class="col-md-5 text-left">
+            <div class="create-btn">
+              Clients Name
+            </div>
+            </th>
+          {%endif%}
+
+          {%if all_client_groups%}
+            {%for group in all_client_groups%}
+              <tr>
+                <td class="col-md-5 text-left">
+                {# <div class="group-row">
+                  <i class="fa fa-server fa-2x"></i>&nbsp;
+                  <a href="{{url_for('browse_2', client_group_id=group['id'])}}" class="group-name">
+                    {{group["name"]}}
+                  </a>
+                </div> #}
+                <div class="group-row">
+                    <div class="group-name-container">
+                      <img src="{{url_for('static', filename='img/server.png')}}"/>
+                      <a href="{{url_for('browse_2', client_group_id=group['id'])}}" class="group-name">
+                        {{group["name"]}}
+                      </a>
+                    </div>
+                    
+                    <div class="logging-container">
+                      <div class="logging">
+                        <img src="{{url_for('static', filename='img/globus.png')}}"/>
+                        <a href="https://app.globus.org/groups/{{group['id']}}" target="_blank">Group Information</a>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {%endfor%}
+          {%else%}
+            <p style="font-size:20px">No clients found.</p>
+          {%endif%}
+        </table>
+      </div>
+    </div>
+
+  </div> <!-- container -->
+{%endblock%}

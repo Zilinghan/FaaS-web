@@ -1,0 +1,62 @@
+{%extends "base.jinja2"%}
+
+{%block title%}{Create Server}{%endblock%}
+
+{%block body%}
+  {%include "header.jinja2"%}
+
+  <div class="container">
+
+    <div class="page-header">
+      <h1>Create Server</h1>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 col-md-offset-3">
+        <form role="form" action="{{url_for('create_server')}}" method="POST">
+          <div class="panel panel-info small-font">
+            <div class="panel-heading">
+              Create Globus Group 
+            </div>
+            <div class="panel-body">
+              <div class="create-server-info">Create a Globus group for federated learning <a href="https://app.globus.org/groups" target="_blank">here</a>. Then copy the group UUID to the form below.</div>
+            </div>
+          </div>
+
+          {# <div class="form-group">
+            <label for="name">Server Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="new-server-name"
+              name="new-server-name"
+              placeholder="New Server Name"
+              required="required"
+              tabindex="1"
+            >
+          </div> #}
+
+          <div class="form-group">
+            <label for="email">Group ID</label>
+            <input
+              type="text"
+              id="new-server-group-id"
+              name="new-server-group-id"
+              class="form-control"
+              placeholder="12345678-90ab-cdef-ghij-klmnopqrstuv"
+              required="required"
+              tabindex="1"
+            >
+          </div>
+
+          <div class="form-group">
+            <button class="btn btn-secondary" onclick="window.location.href='{{ url_for( 'dashboard') }}';">Back</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+
+  </div> <!-- container -->
+{%endblock%}

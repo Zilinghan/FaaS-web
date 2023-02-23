@@ -1,14 +1,18 @@
+import os
+import yaml
+import time
 import requests
-from flask import (abort, flash, redirect, render_template, request, session,
-                   url_for)
-from globus_sdk import (RefreshTokenAuthorizer, TransferAPIError,
-                        TransferClient, TransferData)
-
+import importlib.util
+import multiprocessing
+from enum import Enum
+from tensorboard import program
+from flask import (abort, flash, redirect, render_template, request, session, url_for)
+from globus_sdk import (RefreshTokenAuthorizer, TransferAPIError, TransferClient, TransferData)
 from portal import app, database, datasets
 from portal.decorators import authenticated
-from portal.utils import (get_portal_tokens, get_safe_redirect,
-                          load_portal_client)
-
+from portal.utils import (get_portal_tokens, get_safe_redirect, load_portal_client, load_group_client, group_tagging, get_servers_clients)
+import funcx
+from funcx import FuncXClient
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -141,14 +145,12 @@ def authcallback():
 
         auth_uri = client.oauth2_get_authorize_url(
             query_params=additional_authorize_params)
-
         return redirect(auth_uri)
     else:
         # If we do have a "code" param, we're coming back from Globus Auth
         # and can start the process of exchanging an auth code for a token.
         code = request.args.get('code')
         tokens = client.oauth2_exchange_code_for_tokens(code)
-
         id_token = tokens.decode_id_token()
         session.update(
             tokens=tokens.by_resource_server,
@@ -170,10 +172,404 @@ def authcallback():
             session['institution'] = institution
         else:
             return redirect(url_for('profile',
-                            next=url_for('transfer')))
+                            next=url_for('dashboard')))
 
-        return redirect(url_for('transfer'))
+        return redirect(url_for('dashboard'))
 
+
+def get_endpoint_information(members, group_id):
+    '''
+    Check if the APPFL clients in the group have uploaded their endpoint information
+    '''
+    user_names = []
+    user_emails = []
+    user_endpoints = []
+    for member in members:
+        user_id = member['identity_id']
+        if user_id == session.get('primary_identity'): continue
+        if member['status'] != 'active': continue
+        user_names.append(member['membership_fields']['name'])
+        user_emails.append(member['membership_fields']['email'])
+        if os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id, 'client.yaml')):
+            with open(os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id, 'client.yaml')) as f:
+                data = yaml.safe_load(f)
+            user_endpoints.append(data['client']['endpoint_id'])
+        else:
+            print(os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id, 'client.yaml'))
+            print(member)
+            user_endpoints.append('0')
+    print(user_endpoints)
+    return user_names, user_emails, user_endpoints
+
+
+@app.route('/browse/server/<server_group_id>', methods=['GET'])
+@app.route('/browse/client/<client_group_id>', methods=['GET'])
+@authenticated
+def browse_2(server_group_id=None, client_group_id=None):
+    '''
+    Load the APPFL server/client configuration page
+    '''
+    gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    if server_group_id is not None:
+        server_group = gc.get_group(server_group_id, include=["memberships"])
+        client_names, client_emails, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id)
+        return render_template('server.jinja2', server_group_id=server_group_id, client_names=client_names, client_endpoints=client_endpoints, client_emails=client_emails)
+    if client_group_id is not None:
+        client_group = gc.get_group(client_group_id)
+        return render_template('client.jinja2', client_group=client_group, client_group_id=client_group_id)
+    return render_template('dashboard.jinja2')
+
+
+@app.route('/dashboard', methods=['GET'])
+@authenticated
+def dashboard():    
+    '''Load the dashboard page'''
+    gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    all_groups = gc.get_my_groups()
+    all_server_groups, all_client_groups = get_servers_clients(all_groups)
+    return render_template('dashboard.jinja2', all_server_groups=all_server_groups, all_client_groups=all_client_groups)
+
+
+@app.route('/create_server', methods=['GET', 'POST'])
+@authenticated
+def create_server():    
+    if request.method == 'GET':
+        return render_template('create_server.jinja2')
+    if request.method == 'POST':
+        if not request.form.get('new-server-group-id'):
+            flash('Please enter a group ID.')
+            return redirect(url_for('create_server'))
+        new_server_group_id = request.form.get('new-server-group-id')
+        gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+        try:
+            new_server_group = gc.get_group(new_server_group_id)
+            server_group_name_before = new_server_group["name"]
+            server_group_name_after = group_tagging(server_group_name_before)
+            gc.update_group(new_server_group_id, data={'name': server_group_name_after})
+            flash('The group server %s is successfully created!' % (server_group_name_before, ))
+            return redirect(url_for('create_server'))
+        except:
+            flash('Error: Please enter a valid group ID.')
+            return redirect(url_for('create_server'))
+
+def endpoint_test():
+    import torch
+    return torch.cuda.is_available()
+
+def run_appfl(group_members, server_id, server_group_id, upload_folder):
+    # TODO: Test the availability of the resources
+    # Load the appfl running module
+    spec = importlib.util.spec_from_file_location('funcx-run', 'funcx_server/funcx_sync.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    # Load the model parameters
+    client_configs, dataloaders, server_config = [], [], None
+    fxc = FuncXClient()
+    func_id = fxc.register_function(endpoint_test)
+    for user_id in group_members:
+        # Load server files
+        if user_id == server_id:
+            data_dir = os.path.join(upload_folder, server_group_id, user_id)
+            server_config = os.path.join(data_dir, 'appfl_config.yaml')
+        else:
+            data_dir = os.path.join(upload_folder, server_group_id, user_id)
+            # Check if the folder exists or not
+            if os.path.exists(data_dir):
+                # Check the availability/validity of the resources
+                with open(os.path.join(data_dir, 'client.yaml')) as f:
+                    data = yaml.safe_load(f)
+                endpoint_id = data['client']['endpoint_id']
+                for _ in range(5): # Wait for at most 5 seconds
+                    try:
+                        task_id = fxc.run(endpoint_id=endpoint_id, function_id=func_id)
+                        time.sleep(1)
+                        fxc.get_result(task_id)
+                        client_configs.append(os.path.join(data_dir, 'client.yaml'))
+                        dataloaders.append(os.path.join(data_dir, 'dataloader.py'))
+                        break
+                    except funcx.errors.error_types.TaskPending: continue
+                    except: break
+    if len(client_configs) == 0:
+        print("Error: No active client available, APPFL run is stopped!")
+        return
+    # Start running the APPFL
+    module.main(server_config, client_configs, dataloaders)
+    # TODO: Integrate the attack model
+    # TODO: Generate a report
+
+
+@app.route('/upload_client_config/<client_group_id>', methods=['POST'])
+@authenticated
+def upload_client_config(client_group_id):
+    # Obtain the folder for uploading
+    user_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], client_group_id, session.get('primary_identity'))
+    if not os.path.exists(user_upload_folder):
+        os.makedirs(user_upload_folder)
+    # TODO: 
+    # If we change the configurations, please change here on how we read those user inputs
+    # Decode the client configuration into a YAML file
+    client_config = {'client': {}}
+    for param in request.form:
+        client_config['client'][param] = request.form[param]
+    # Save the client configuration into the yaml file
+    with open(os.path.join(user_upload_folder, 'client.yaml'), 'w') as f:
+        yaml.dump(client_config, f, default_flow_style=False)
+    # Save the data loader
+    loader_file = request.files['client-dataloader']
+    loader_file.save(os.path.join(user_upload_folder, 'dataloader.py'))
+    return redirect(url_for('dashboard'))
+
+def load_server_config(form, server_group_id):
+    # TODO: Make sure that the sanity checks are correct (value ranges)
+    # Input data sanity check
+    error_count = 0
+    form['server-training-epoch'] = int(form['server-training-epoch'])
+    if form['server-training-epoch'] <= 0:
+        error_count += 1
+        flash(f"Error {error_count}: Server training epoch cannot be less than or equal to 0!")
+    form['client-training-epoch'] = int(form['client-training-epoch'])
+    if form['client-training-epoch'] <= 0:
+        error_count += 1
+        flash(f"Error {error_count}: Client training epoch cannot be less than or equal to 0!")
+    form['privacy-budget'] = float(form['privacy-budget'])
+    if form['privacy-budget'] < 0 or form['privacy-budget'] > 1:
+        error_count += 1
+        flash(f"Error {error_count}: Privacy budget must lie in range [0, 1]!")
+    if form['privacy-budget'] == 0:
+        form['privacy-budget'] = False
+    form['clip-value'] = float(form['clip-value'])
+    if form['clip-value'] < 0:
+        error_count += 1
+        flash(f"Error {error_count}: Clip value cannot be negative!")
+    if form['clip-value'] ==  0:
+        form['clip-value'] = False
+    form['clip-norm'] = float(form['clip-norm'])
+    if form['clip-norm'] < 0:
+        error_count += 1
+        flash(f"Error {error_count}: Clip norm cannot be negative!")
+    form['server-lr'] = float(form['server-lr'])
+    if form['server-lr'] < 0:
+        error_count += 1
+        flash(f"Error {error_count}: Server learning rate cannot be negative!")
+    form['server-adapt-param'] = float(form['server-adapt-param'])
+    if form['server-adapt-param'] < 0:
+        error_count += 1
+        flash(f"Error {error_count}: Server Adaptive Param cannot be negative!")
+    form['server-momentum'] = float(form['server-momentum'])
+    if form['server-momentum'] < 0:
+        error_count += 1
+        flash(f"Error {error_count}: Server Momentum cannot be negative!")
+    form['server-var-momentum'] = float(form['server-var-momentum'])
+    if form['server-var-momentum'] < 0:
+        error_count += 1
+        flash(f"Error {error_count}: Server Variance Momentum cannot be negative!")
+    form['model-num-channels'] = int(form['model-num-channels'])
+    if form['model-num-channels'] <= 0:
+        error_count += 1
+        flash(f"Error {error_count}: Number of input channels must be positive!")
+    form['model-num-classes'] = int(form['model-num-classes'])
+    if form['model-num-classes'] <= 0:
+        error_count += 1
+        flash(f"Error {error_count}: Number of output classes must be positive!")
+    form['model-input-width'] = int(form['model-input-width'])
+    if form['model-input-width'] <= 0:
+        error_count += 1
+        flash(f"Error {error_count}: Input width must be positive!")
+    form['model-input-height'] = int(form['model-input-height'])
+    if form['model-input-height'] <= 0:
+        error_count += 1
+        flash(f"Error {error_count}: Input height must be positive!")
+    form['client-lr'] = float(form['client-lr'])
+    if form['client-lr'] < 0:
+        error_count += 1
+        flash(f"Error {error_count}: Client learning rate cannot be negative!")
+    form['client-lr-decay'] = float(form['client-lr-decay'])
+    if form['client-lr-decay'] <= 0 or form['client-lr-decay'] > 1:
+        error_count += 1
+        flash(f"Error {error_count}: Client learning rate decay should be in range (0, 1]!")
+    if error_count > 0:
+        return error_count, None
+
+    server_log_dir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'), 'logs')
+
+    appfl_config = {
+        'algorithm': {},
+        'training': {},
+        'dataset': {},
+        'model': {},
+        'server': {'data_dir': server_log_dir, 'output_dir': server_log_dir}
+    }
+    appfl_config['algorithm']['servername'] = form['fed-alg-select']
+    appfl_config['algorithm']['clientname'] = 'FuncxClientOptim'
+    #TODO: I think server_lr_decay_exp_gamma is not a suitable name
+    appfl_config['algorithm']['args'] = {
+        'server_learning_rate': form['server-lr'],
+        'server_adapt_param': form['server-adapt-param'],
+        'server_momentum_param_1': form['server-momentum'],
+        'server_momentum_param_2': form['server-var-momentum'],
+        'optim': form['client-optimizer'],
+        'num_local_epochs': form['client-training-epoch'],
+        'optim_args': {'lr': form['client-lr']},
+        'epsilon': form['privacy-budget'],
+        'server_lr_decay_exp_gamma': form['client-lr-decay'],
+        'client_weights': form['client-weights'],
+        'clip_value': form['clip-value'],
+        'clip_norm': form['clip-norm']
+    }
+    appfl_config['training'] = {
+        'num_epochs': form['server-training-epoch'],
+        'save_model_filename': f"{form['federation-name']}_{form['training-model']}",
+        'save_model_dirname': "./save_models"
+    }
+    appfl_config['dataset']['name'] = form['federation-name']
+    appfl_config['model_type'] = form['training-model']
+    appfl_config['model'] = {
+        'num_channel': form['model-num-channels'],
+        'num_classes': form['model-num-classes'],
+        'width': form['model-input-width'],
+        'height': form['model-input-height']
+    }
+    return error_count, appfl_config
+
+
+@app.route('/upload_server_config/<server_group_id>', methods=['POST'])
+@authenticated
+def upload_server_config(server_group_id):
+    # Obtain the folder for uploading
+    user_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'))
+    if not os.path.exists(user_upload_folder):
+        os.makedirs(user_upload_folder)
+    # TODO: (1) If we change the configurations, please change here on how we read those user inputs
+    # Save the appfl and model configuration
+    form = dict(request.form)
+    error_count, appfl_config = load_server_config(form, server_group_id)
+    if error_count > 0:
+        return redirect(request.referrer)
+    with open(os.path.join(user_upload_folder, 'appfl_config.yaml'), 'w') as f:
+        yaml.dump(appfl_config, f, default_flow_style=False)
+    # Start the APPFL training
+    gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    server_group = gc.get_group(server_group_id, include=["memberships"])
+    group_members = [server_group["memberships"][i]["identity_id"] for i in range(len(server_group["memberships"]))]
+    appfl_process = multiprocessing.Process(target=run_appfl, args=(group_members, session.get('primary_identity'), server_group_id, app.config['UPLOAD_FOLDER']))
+    appfl_process.start()
+
+    return redirect(url_for('dashboard'))
+
+    # TODO: (2) Set up max size for uploaded file - Done by setting app.config['MAX_CONTENT_LENGTH']
+    # Save the user-uploaded files
+    appfl_config_file = request.files['server-config']
+    model_file = request.files['server-model']
+    model_config_file = request.files['server-model-config']
+    appfl_config_file.save(os.path.join(user_upload_folder, 'appfl_config.yaml'))
+    model_file_path = os.path.join(user_upload_folder, 'model.py')
+    model_file.save(model_file_path)
+    model_config_file.save(os.path.join(user_upload_folder, 'model_config.yaml'))
+    # Start the APPFL Training
+    gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    server_group = gc.get_group(server_group_id, include=["memberships"])
+    group_members = [server_group["memberships"][i]["identity_id"] for i in range(len(server_group["memberships"]))]
+    appfl_process = multiprocessing.Process(target=run_appfl, args=(group_members, session.get('primary_identity'), server_group_id, app.config['UPLOAD_FOLDER']))
+    appfl_process.start()
+    return redirect(url_for('dashboard'))
+
+
+
+class EndpointStatus(Enum):
+    UNSET = -2              # User does not specify an endpoint
+    INVALID = -1            # User give an invalid endpoint
+    INACTIVE = 0            # Endpoint is not active (not started)
+    ACTIVE_CPU = 1          # Endpoint does not have GPU
+    ACTIVE_GPU = 2          # Endpoint has GPU available
+
+@app.route('/status-check', methods=['GET'])
+@authenticated
+def status_check():
+    endpoint_status = {}
+    for key in request.args:
+        endpoint_status[request.args[key]] = EndpointStatus.UNSET.value
+    fxc = FuncXClient()
+    func_id = fxc.register_function(endpoint_test)
+    for endpoint_id in endpoint_status:
+        if endpoint_id != '0':
+            endpoint_status[endpoint_id] = EndpointStatus.INACTIVE.value
+            for _ in range(5): # Wait for at most 5 seconds
+                try:
+                    task_id = fxc.run(endpoint_id=endpoint_id, function_id=func_id)
+                    time.sleep(1)
+                    if (fxc.get_result(task_id)):
+                        endpoint_status[endpoint_id] = EndpointStatus.ACTIVE_GPU.value
+                        break
+                    else:
+                        endpoint_status[endpoint_id] = EndpointStatus.ACTIVE_CPU.value
+                        break
+                except funcx.errors.error_types.TaskPending:
+                    continue
+                except:
+                    endpoint_status[endpoint_id] = EndpointStatus.INVALID.value
+                    break
+    return endpoint_status
+    
+@app.route('/appfl-log/<server_group_id>', methods=['GET'])
+@authenticated
+def appfl_log_page(server_group_id):
+    '''
+    Return the log page for certain funcx-run
+    '''
+    #TODO: Include a 404 page if there is no log file available
+    log_file = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'), 'logs', 'log_server.log')
+    if os.path.isfile(log_file):
+        with open(log_file) as f:
+            log_contents = [line for line in f]
+        return render_template('log.jinja2', log_contents=log_contents)
+    else:
+        flash("Error: There is not log file for this server!")
+        return redirect(request.referrer)
+
+@app.route('/tensorboard-log/<server_group_id>', methods=['GET'])
+@authenticated
+def tensorboard_log_page(server_group_id):
+    '''
+    Return the tensorboard log page for certain funcx-run
+    Note:
+    This implementation still launches a new TensorBoard server every time 
+    the /info route is visited, so you may want to modify the code to launch 
+    the server only once and keep it running in the background, or use a 
+    different method of embedding the TensorBoard page (such as using 
+    JavaScript to load the page dynamically).
+    '''
+    #TODO: Include a 404 page if there is no log file available
+    logdir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'), 'logs', 'tensorboard')
+    if os.path.isdir(logdir):
+        tb = program.TensorBoard()  
+        tb.configure(argv=[None, '--logdir', logdir])
+        url = tb.launch()
+        return render_template('tensorboard_log.jinja2', url=url)
+    else:
+        flash("Error: There is not log file for this server!")
+        return redirect(request.referrer)
+
+
+@app.route('/status-check-test', methods=['GET'])
+@authenticated
+def status_check_test():
+    import time
+    time.sleep(5)
+    return 'OK'
+
+
+@app.errorhandler(413)
+def error413(e):
+    flash(f'Error: File is larger than the maximum file size: {float(app.config["MAX_CONTENT_LENGTH"]/(1024*1024)):2f}MB!')
+    return redirect(request.referrer)
+
+
+
+
+
+
+
+# =====================================DEPRECATED BELOW===============================================
 
 @app.route('/browse/dataset/<dataset_id>', methods=['GET'])
 @app.route('/browse/endpoint/<endpoint_id>/<path:endpoint_path>',

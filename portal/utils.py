@@ -10,12 +10,39 @@ except ImportError:
 
 from portal import app
 
+FL_TAG = '__FLAAS'
 
 def load_portal_client():
     """Create an AuthClient for the portal"""
     return globus_sdk.ConfidentialAppAuthClient(
         app.config['PORTAL_CLIENT_ID'], app.config['PORTAL_CLIENT_SECRET'])
 
+def load_group_client(authorizer):
+    """Create a GroupClient for getting group information."""
+    return globus_sdk.GroupsClient(authorizer=globus_sdk.AccessTokenAuthorizer(authorizer))
+
+def group_tagging(group_name):
+    """Add a tag to the group name is there is no tag before to indicate that this is a group for FL."""
+    if group_name[max(0, len(group_name)-len(FL_TAG)):] != FL_TAG:
+        group_name += FL_TAG
+    return group_name
+
+def get_servers_clients(all_groups):
+    servers = []
+    clients = []
+    for group in all_groups:
+        if group['name'][max(0, len(group['name'])-len(FL_TAG)):] == FL_TAG:
+            group['name'] = group['name'][:len(group['name'])-len(FL_TAG)]
+            is_server = False
+            for member in group['my_memberships']:
+                if member['role'] in ['admin', 'manager']:
+                    is_server = True
+                    break
+            if is_server:
+                servers.append(group)
+            else:
+                clients.append(group)
+    return servers, clients
 
 def is_safe_redirect_url(target):
     """https://security.openstack.org/guidelines/dg_avoid-unvalidated-redirects.html"""  # noqa

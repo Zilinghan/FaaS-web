@@ -1,0 +1,317 @@
+{%extends "base.jinja2"%}
+
+{%block title%}{Create Server}{%endblock%}
+
+
+{%block body%}
+  {%include "header.jinja2"%}
+
+  <div class="container">
+
+    <div class="page-header">
+      <h1>Federated Learning Server Configuration</h1>
+    </div>
+
+    <div class="row">
+      <div class="col-md-7 col-md-offset-3">
+        
+        <div class="endpoint-status-table">
+          <div class="endpoint-status-row">
+            <div class="endpoint-status-title first-column"><p>Client Endpoints</p></div>
+            <div class="endpoint-status-title second-column"><p>Status</p></div>
+            <div class="endpoint-status-title third-column"><p>Email</p></div>
+          </div>
+          {% for i in range(client_names|length)%}
+            <div class="endpoint-status-row">
+              <div class="endpoint-status-cell first-column">{{client_names[i]}}</div>
+              <div class="endpoint-status-cell second-column">
+                {% if client_endpoints[i] == '0'%}
+                  {# <img id="status_{{client_names[i]}}_{{client_endpoints[i]}}" src="{{url_for('static', filename='img/unset.png')}}" data-toggle="popover" data-content="The client endpoint is not set or invalid!" data-placement="left" role="button" data-trigger="focus"/> #}
+                  <img id="status_{{client_names[i]}}_{{client_endpoints[i]}}" src="{{url_for('static', filename='img/unset-hex.png')}}" tabindex="0" role="button" data-toggle="popover" data-trigger="focus" title="Endpoint Status" data-content="The client endpoint is either unset or invalid!" data-placement="left"/>
+                {% else %}
+                  {# <img id="status_{{client_names[i]}}_{{client_endpoints[i]}}" src="{{url_for('static', filename='img/loading.gif')}}" data-toggle="popover" data-content="Checking the status of the client endpoint!" data-placement="left" role="button" data-trigger="focus"/> #}
+                  <img id="status_{{client_names[i]}}_{{client_endpoints[i]}}" src="{{url_for('static', filename='img/loading.gif')}}" tabindex="0" role="button" data-toggle="popover" data-trigger="focus" title="Endpoint Status" data-content="Checking the status of the client endpoint......" data-placement="left"/>
+                {% endif %}
+              </div>
+              <div class="endpoint-status-cell third-column">
+                <a href="mailto:{{client_emails[i]}}"><img src="{{url_for('static', filename='img/email.png')}}" role="button"/></a>
+              </div>
+              
+            </div>
+          {% endfor %}
+          <!-- more rows here -->
+        </div>
+
+        
+
+
+        <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
+        {# TODO: Let the run of funcx-appfl choose which alg to run#}
+        <form role="form" action="{{url_for('upload_server_config', server_group_id=server_group_id)}}" method="POST" enctype = "multipart/form-data">
+          {# Drop-down box for selected federated learning algorithm #}
+          {% set fed_algs = ['Federated Average', 'Federated Average Momentum', 'Federated Adagrad', 'Federated Adam', 'Federated Yogi']%}
+          {% set fed_algs_func_names = ['ServerFedAvg', 'ServerFedAvgMomentum', 'ServerFedAdagrad', 'ServerFedAdam', 'ServerFedYogi']%}
+          <div class="form-group-inline">
+            <label class="form-label-font">Federation Algorithm</label>
+            <select name="fed-alg-select" id="fed-alg-select" class="form-control form-font-small">
+            {% for i in range(fed_algs|length)%}
+              <option value="{{fed_algs_func_names[i]}}">{{fed_algs[i]}}</option>
+            {% endfor %}
+            </select>
+          </div>
+
+          <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
+          {# Federation Name #}
+          <div class="form-group-inline">
+            <label>
+              Federation Name 
+              <img src="{{url_for('static', filename='img/info2.png')}}" tabindex="0" class="info-icon" role="button" data-toggle="popover" data-trigger="focus" title="Federation Name" data-content="Please give this federated learning session a name of your choice."/>
+            </label>
+            <input type="text" id="federation-name" name="federation-name" class="form-control" placeholder="federation name" required="required" tabindex="1">
+          </div>
+          
+          {# Training Epoch (Global) #}
+          <div class="form-group-inline">
+            <label>
+              Server Training Epochs
+              <img src="{{url_for('static', filename='img/info2.png')}}" tabindex="0" class="info-icon" role="button" data-toggle="popover" data-trigger="focus" title="Server Training Epochs" data-content="Number of training epochs for the federated learning server (i.e., number of aggregations for client models)."/>
+            </label>
+            <input type="number" id="server-training-epoch" name="server-training-epoch" class="form-control" placeholder="server training epochs" required="required" tabindex="2" min="1" step="1">
+          </div>
+
+          {# Training Epoch (Client Local) #}
+          <div class="form-group-inline">
+            <label>
+              Client Training Epochs
+              <img src="{{url_for('static', filename='img/info2.png')}}" tabindex="0" class="info-icon" role="button" data-toggle="popover" data-trigger="focus" title="Client Training Epochs" data-content="Number of local training epochs for each federated learning client before send weights back to server."/>
+            </label>
+            <input type="number" id="client-training-epoch" name="client-training-epoch" class="form-control" placeholder="client training epochs" required="required" tabindex="3" min="1" step="1">
+          </div>
+
+          <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
+          {# TODO: Probably add some hints on what these mean #}
+          {# Privacy Budget #}
+          <div class="form-group-inline">
+            <label>
+              Privacy Budget (\(\epsilon\))
+              <img src="{{url_for('static', filename='img/info2.png')}}" tabindex="0" class="info-icon" role="button" data-toggle="popover" data-trigger="focus" title="Privacy Budget" data-content="Stronger privacy as the value decreases, or enter 0 to disable privacy preserving."/>  
+            </label>
+            <input type="number" id="privacy-budget" name="privacy-budget" class="form-control" placeholder="0 for diabled or number in (0,1]" required="required" tabindex="4" min="0" max="1" step="any">
+          </div>
+
+          {# Clip Value #}
+          <div class="form-group-inline">
+            <label>
+              Clip Value
+              <img src="{{url_for('static', filename='img/info2.png')}}" tabindex="0" class="info-icon" role="button" data-toggle="popover" data-trigger="focus" title="Clip Value" data-content="TBF."/>  
+            </label>
+            <input type="number" id="clip-value"" name="clip-value" class="form-control" placeholder="0 for disabled or number" required="required" tabindex="5" min="0" step="any">
+          </div>
+
+          {# Clip Norm #}
+          <div class="form-group-inline">
+            <label>
+              Clip Norm
+              <img src="{{url_for('static', filename='img/info2.png')}}" tabindex="0" class="info-icon" role="button" data-toggle="popover" data-trigger="focus" title="Clip Norm" data-content="TBF."/> 
+            </label>
+            <input type="number" id="clip-norm"" name="clip-norm" class="form-control" placeholder="0 for disabled or number" required="required" tabindex="6" min="0" step="any">
+          </div>
+
+          {# Further Hyperparameters for Different Fed Algorithms  #}
+          <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801); display:none;" width="100%" id="hide-line">
+          {# Server Learning Rate #}
+          <div class="form-group-inline" style="display:none" id="server-lr-div">
+            <label>Server Learning Rate</label>
+            <input type="number" id="server-lr"" name="server-lr" class="form-control" value="0.01" required="required" min="1e-10" step="any">
+          </div>
+          {# Server Adapt Param #}
+          <div class="form-group-inline" style="display:none" id="server-adapt-param-div">
+            <label>Server Adaptive Param</label>
+            <input type="number" id="server-adapt-param"" name="server-adapt-param" class="form-control" value="0.001" required="required" min="1e-10" step="any">
+          </div>
+          {# Server Momentum #}
+          <div class="form-group-inline" style="display:none" id="server-momentum-div">
+            <label>Server Momentum</label>
+            <input type="number" id="server-momentum"" name="server-momentum" class="form-control" value="0.9" required="required" min="1e-10" step="any">
+          </div>
+          {# Server Variance Momentum #}
+          <div class="form-group-inline" style="display:none" id="server-var-momentum-div">
+            <label>Server Var Momentum</label>
+            <input type="number" id="server-var-momentum"" name="server-var-momentum" class="form-control" value="0.99" required="required" min="1e-10" step="any">
+          </div>
+
+
+          <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
+          {# Upload Model #}
+          {% set models = ['CNN']%}
+          <div class="form-group-inline">
+            <label>
+              Training Model
+              <img src="{{url_for('static', filename='img/info2.png')}}" tabindex="0" class="info-icon" role="button" data-toggle="popover" data-trigger="focus" title="Training Model" data-content="channels: number of channels for input; num classes: number of model output classes; width: input image width; height: input image height"/> 
+            </label>
+            <select name="training-model" id="training-model" class="form-control form-font-small">
+            {% for model in models%}
+              <option value="{{model}}">{{model}}</option>
+            {% endfor %}
+            </select>
+          </div>
+          {# Model parameters #}
+          <div class="form-group-grid">
+              <label>channels</label>
+              <input type="number" id="model-num-channels" name="model-num-channels" class="form-control" placeholder="" required="required" tabindex="6" min="1" step="1">
+              <label>num classes</label>
+              <input type="number" id="model-num-classes" name="model-num-classes" class="form-control" placeholder="" required="required" tabindex="7" min="1" step="1">
+              <label>width</label>
+              <input type="number" id="model-input-width" name="model-input-width" class="form-control" placeholder="" required="required" tabindex="8" min="1" step="1">
+              <label>height</label>
+              <input type="number" id="model-input-height" name="model-input-height" class="form-control" placeholder="" required="required" tabindex="9" min="1" step="1">
+          </div>
+          
+
+          <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
+          {# Hyperparameters for client-side optimizer #}
+          {# TODO: What else optimizer can be included in addition to SGD#}
+          {# TODO: What else hyperparameters to set in addition to learning rate #} 
+          {# Client Optimizer #}
+          {% set client_optims = ['SGD', 'Adam']%}
+          <div class="form-group-inline">
+            <label>Client Optimizer</label>
+            <select name="client-optimizer" id="client-optimizer" class="form-control form-font-small">
+            {% for optim in client_optims%}
+              <option value="{{optim}}">{{optim}}</option>
+            {% endfor %}
+            </select>
+          </div>
+          {# Client Learning Rate#}
+          <div class="form-group-inline">
+            <label>Client Learning Rate</label>
+            <input type="number" id="client-lr" name="client-lr" class="form-control" value="0.01" required="required" tabindex="10" min="1e-10" step="any">
+          </div>
+          {# Client Learning Rate Decay#}
+          <div class="form-group-inline">
+            <label>Client Learning Rate Decay</label>
+            <input type="number" id="client-lr-decay" name="client-lr-decay" class="form-control" value="0.975" required="required" tabindex="11" min="1e-10" max="1" step="any">
+          </div>
+
+          {# Client Weights #}
+          <div class="form-group-inline">
+            <label>Client Weights</label>
+            <select name="client-weights" id="client-weights" class="form-control form-font-small">
+              <option value="sample_size">Proportional to Sample Size</option>
+              <option value="equal">Equal for All Clients</option>
+            </select>
+          </div>
+
+          <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
+
+          {# Submit Buttons #}
+          <div class="form-group">
+            <button class="btn btn-secondary" onclick="window.location.href='{{ url_for( 'dashboard') }}';">Back</button>
+            <button type="submit" class="btn btn-primary">Start</button>
+          </div>
+        </form>
+
+        {# TODO: We can support more federated algorithm later#}
+
+      </div>
+    </div>
+
+  </div> <!-- container -->
+
+  <script>
+    $(document).ready(function() {
+      $(function () {
+        $('[data-toggle="popover"]').popover()
+      })
+
+      {# Endpoint Health Status Check #}
+      // Obtain the given endpoints to send, and generate an endpoint-name dictionary
+      var client_endpoints = {{client_endpoints|safe}};
+      var client_names = {{client_names|safe}}
+      var sent_data= {};
+      var endpoint_name_dict = {}
+      for (var i = 0; i < client_endpoints.length; i++){
+        if (client_endpoints[i] != '0') {
+          sent_data[i] = client_endpoints[i];
+          endpoint_name_dict[client_endpoints[i]] = client_names[i];
+        }
+      }
+      {# console.log(endpoint_name_dict)
+      console.log(sent_data); #}
+      // Send the endpoints for status checking
+      $.ajax({
+        url: '/status-check',
+        method: 'GET',
+        data: {endpoints: sent_data},
+        contentType: 'multipart/form-data',
+        success: function(resp){
+          {# var resp = {{resp|safe}}; #}
+          console.log(Object.keys(resp))
+          var endpoints = Object.keys(resp);
+          for (var i = 0; i < endpoints.length; i++) {
+            if (resp[endpoints[i]] == '0') {
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/inactive-hex.png')}}';
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data-content', 'The client endpoint is inactive or stopped!');
+            }
+            else if (resp[endpoints[i]] == '1') {
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/set-hex.png')}}';
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data-content', 'The client endpoint is active with CPU available!'); 
+            }
+            else if (resp[endpoints[i]] == '2') {
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/set-hex.png')}}';
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data-content', 'The client endpoint is active with GPU available!');
+            }
+            else {
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/unset-hex.png')}}';
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data_content', 'The client endpoint is either unset or invalid!');
+            }
+          }
+        }
+      })
+
+
+      $('#fed-alg-select').change(function() {
+        var selectedAlg = $(this).val();
+        console.log(selectedAlg);
+        if (selectedAlg == 'ServerFedAvg') {
+          document.getElementById('hide-line').style.display = "none";
+          document.getElementById('server-lr-div').style.display = "none";
+          document.getElementById('server-adapt-param-div').style.display = "none";
+          document.getElementById('server-momentum-div').style.display = "none";
+          document.getElementById('server-var-momentum-div').style.display = "none";
+        }
+        else if (selectedAlg == 'ServerFedAvgMomentum') {
+          document.getElementById('hide-line').style.display = "block";
+          document.getElementById('server-lr-div').style.display = "none";
+          document.getElementById('server-adapt-param-div').style.display = "none";
+          document.getElementById('server-momentum-div').style.display = "flex";
+          document.getElementById('server-var-momentum-div').style.display = "none";
+        }
+        else if (selectedAlg == 'ServerFedAdagrad') {
+          document.getElementById('hide-line').style.display = "block";
+          document.getElementById('server-lr-div').style.display = "flex";
+          document.getElementById('server-adapt-param-div').style.display = "flex";
+          document.getElementById('server-momentum-div').style.display = "flex";
+          document.getElementById('server-var-momentum-div').style.display = "none";
+        }
+        else if (selectedAlg == 'ServerFedAdam' || selectedAlg == 'ServerFedYogi') {
+          document.getElementById('hide-line').style.display = "block";
+          document.getElementById('server-lr-div').style.display = "flex";
+          document.getElementById('server-adapt-param-div').style.display = "flex";
+          document.getElementById('server-momentum-div').style.display = "flex";
+          document.getElementById('server-var-momentum-div').style.display = "flex";
+        }
+      });
+      $('#client-optimizer').change(function(){
+        var selectedOptim = $(this).val();
+        if (selectedOptim == 'SGD') {
+          document.getElementById('client-lr').value = "0.01";
+        }
+        else if (selectedOptim == 'Adam') {
+          document.getElementById('client-lr').value = '0.001';
+        }
+      });
+    });
+  </script>
+{%endblock%}
+

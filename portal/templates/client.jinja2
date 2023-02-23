@@ -1,0 +1,102 @@
+{%extends "base.jinja2"%}
+
+{%block title%}{Create Server}{%endblock%}
+
+{%block body%}
+  {%include "header.jinja2"%}
+  <script type="text/javascript" src="{{url_for('static', filename='js/server.js')}}"></script>
+
+  <div class="container">
+
+    <div class="page-header">
+      <h1>Client Information</h1>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 col-md-offset-3">
+        <form role="form" action="{{url_for('upload_client_config', client_group_id=client_group_id)}}" method="POST" enctype = "multipart/form-data">
+          <div class="panel panel-info small-font">
+            <div class="panel-heading">
+              Create funcX Endpoint 
+            </div>
+            <div class="panel-body">
+              <div class="create-server-info">If you have not created a funcX endpoint, follow this <a href="https://app.globus.org/groups" target="_blank">link</a> to create a funcX endpoint for your computing resource. Then copy the endpoint ID to the form below.</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Endpoint ID</label>
+            <input
+              type="text"
+              id="client-endpoint-id"
+              name="endpoint_id"
+              class="form-control"
+              placeholder="12345678-90ab-cdef-ghij-klmnopqrstuv"
+              required="required"
+              tabindex="1"
+            >
+          </div>
+
+          <div class="form-group">
+            <label>Dataloader</label>
+            <input
+              type="file"
+              id="client-dataloader"
+              name="client-dataloader"
+              class="form-control"
+              placeholder="dataloader.py"
+              required="required"
+              tabindex="2"
+              accept=".py"
+            >
+          </div>
+
+          <div class="form-group">
+            <label>Device Type</label>
+            <input
+              type="text"
+              id="client-device-type"
+              name="device"
+              class="form-control"
+              placeholder="cpu"
+              required="required"
+              tabindex="3"
+            >
+          </div>
+
+          <div class="form-group">
+            <label>Data Directory</label>
+            <input
+              type="text"
+              id="client-data-directory"
+              name="data_dir"
+              class="form-control"
+              placeholder="data"
+              required="required"
+              tabindex="4"
+            >
+          </div>
+
+          <div class="form-group">
+            <label>Output Directory</label>
+            <input
+              type="text"
+              id="client-output-directory"
+              name="output_dir"
+              class="form-control"
+              placeholder="output"
+              required="required"
+              tabindex="5"
+            >
+          </div>
+
+          <div class="form-group">
+            <button class="btn btn-secondary" onclick="window.location.href='{{ url_for( 'dashboard') }}';">Back</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div> <!-- container -->
+{%endblock%}

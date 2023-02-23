@@ -1,3 +1,11 @@
+# Development
+data/
+funcx/
+scripts/
+log_funcx_appfl/*
+globus/
+output/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

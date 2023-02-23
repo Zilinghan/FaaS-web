@@ -1,0 +1,179 @@
+.create-btn {
+    font-size: 22px;
+}
+
+.create-btn a{
+    color:rgb(161, 160, 160);
+    font-size: 22px;
+    font-weight: normal;
+    float: right;
+}
+
+.create-btn a:hover {
+    color: gray;
+}
+
+.create-server-info p {
+    font-size: x-small !important;
+}
+
+.create-server-info a {
+    color: blue;
+}
+
+.group-name-container {
+    display: flex;
+    align-items: center;
+}
+
+.group-name-container img{
+    width: 45px;
+    height: 45px;
+}
+
+.group-name {
+    font-size: 20px;
+}
+
+.group-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logging-container {
+    display: flex;
+    align-items: center;
+    /* border-width: 10px;
+    border-style: dashed; */
+}
+
+.logging img{
+    width: 30px;
+    height: 30px;
+}
+
+.logging {
+    /* border-width: 10px;
+    border-style: dashed; */
+    margin-left: 10px;
+    font-size: 20px;
+}
+
+.form-font-small {
+    font-size: 14px !important;
+}
+
+.form-label-font {
+    font-size: 16px !important;
+}
+
+.form-group-inline {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+.form-group-inline label {
+    flex-basis: 30%;
+    font-size: small;
+}
+.form-group-inline input {
+    flex-basis: 70%;
+}
+
+.form-group-inline select {
+    flex-basis: 70%;
+}
+
+.form-group-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.form-group-grid label {
+    font-size: small;
+}
+
+.form-group-grid input {
+    flex-basis: 14%;
+    margin-left: 0%;
+}
+
+.endpoint-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 16px;
+    /* font-weight: bold; */
+}
+
+.endpoint-status img {
+    width: 4%;
+    height: 4%;
+}
+
+.endpoint-status-title {
+    display: flex;
+    justify-content: space-between;
+    /* border-width: 10px;
+    border-style: dashed; */
+}
+
+.endpoint-status-title p {
+    font-size: 18px;
+    font-weight: bold;
+    margin-top: 0;
+    margin-bottom: 5px;
+}
+
+.info-icon {
+    width: 15%;
+    height: 15%;
+}
+
+.python-font {
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+}
+
+
+.endpoint-status-table {
+    display: flex;
+    flex-direction: column;
+}
+  
+.endpoint-status-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    /* border: 1px solid #ccc; */
+}
+
+.cell {
+    padding: 0px;
+}
+
+.first-column {
+    width: 70%;
+}
+
+.second-column, .third-column {
+    width: 5%;
+}
+  
+.endpoint-status-cell {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 16px;
+}
+
+.endpoint-status-cell img {
+    width: 100%;
+    height: 100%;
+}
