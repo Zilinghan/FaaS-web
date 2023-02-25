@@ -539,11 +539,15 @@ def tensorboard_log_page(server_group_id):
     JavaScript to load the page dynamically).
     '''
     #TODO: Include a 404 page if there is no log file available
+    #TODO: currently the tensorboard is launched using http, later we should launch it using https
     logdir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'), 'logs', 'tensorboard')
     if os.path.isdir(logdir):
         tb = program.TensorBoard()  
-        tb.configure(argv=[None, '--logdir', logdir])
+        tb.configure(argv=[None, '--logdir', logdir, '--host', '0.0.0.0'])
         url = tb.launch()
+        port = url.split(':')[-1]
+        url = f'http://{app.config["SESSION_COOKIE_DOMAIN"]}:{port}'
+        return redirect(url)
         return render_template('tensorboard_log.jinja2', url=url)
     else:
         flash("Error: There is not log file for this server!")

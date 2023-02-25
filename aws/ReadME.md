@@ -50,13 +50,15 @@ This is how to create an EC2 instance. Please allocate some amount of disk memor
 
 6. Clone the repository for APPFL and checkout to the funcx branch
     ```
+    cd ~
     git clone git@github.com:Zilinghan/FL-as-a-Service.git FaaS
+    cd FaaS
     git checkout funcx
     ```
 
 7. Configure the environment
     ```
-    cd FaaS
+    conda create -n appfl python=3.8
     conda activate appfl
     pip install -r requirements.txt
     pip install -e .
@@ -82,7 +84,7 @@ This is how to create an EC2 instance. Please allocate some amount of disk memor
 * Visit the [Globus Developer Pages](https://developers.globus.org) to register an App.
 * If this is your first time visiting the Developer Pages you'll be asked to create a Project. A Project is a way to group Apps together.
 * When registering the App you'll be asked for some information, including the redirect URL and any scopes you will be requesting.
-    * Redirect URL: `https://YOUR_IP:5000/authcallback` (note: replace YOUR_IP with your EC2 instance public IPv4 address).
+    * Redirect URL: `https://YOUR_IP:8000/authcallback` (note: replace YOUR_IP with your EC2 instance public IPv4 address).
 
 * After creating your App the client id and secret can be copied into this project in the following two places:
     * `portal/portal.conf` in the `PORTAL_CLIENT_ID` and `PORTAL_CLIENT_SECRET` properties.
