@@ -94,3 +94,29 @@ This is how to create an EC2 instance. Please allocate some amount of disk memor
     ```
     ./run_portal.py
     ```
+
+12. To run the portal server on the background, we use Systemd boot manager for restart the server if the EC2 restarts or reboots for some reason. We create a `<projectname>.service` file in `/etc/systemd/system` folder and specify what would happen when the system reboots. 
+
+    First create the file:
+    ```
+    sudo vim /etc/systemd/system/web.service
+    ```
+    Then copy the following contents into this file. **Note**: you need to replace the value for the `WorkingDirectory` to the directory of your app (containing `run_portal.py`). For the first argument of `ExecStart`, it should be the **absolute** path of your python, which can be obtained by running `which python`.
+    ```
+    [Unit]
+    Description=Web App Deployment
+    After=network.target
+    [Service]
+    User=ec2-user
+    WorkingDirectory=/home/ec2-user/FaaS-web
+    ExecStart=/home/ec2-user/miniconda3/bin/python run_portal.py
+    Restart=always
+    [Install]
+    WantedBy=multi-user.target
+    ``` 
+    Then enable the service
+    ```
+    sudo systemctl daemon-reload
+    sudo systemctl start helloworld
+    sudo systemctl enable helloworld
+    ```
