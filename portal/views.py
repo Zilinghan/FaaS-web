@@ -2,6 +2,7 @@ import os
 import yaml
 import time
 import requests
+import globus_sdk
 import importlib.util
 import multiprocessing
 from enum import Enum
@@ -139,6 +140,7 @@ def authcallback():
 
     # If there's no "code" query string parameter, we're in this route
     # starting a Globus Auth login flow.
+    print(request.args)
     if 'code' not in request.args:
         additional_authorize_params = (
             {'signup': 1} if request.args.get('signup') else {})
@@ -185,11 +187,25 @@ def get_endpoint_information(members, group_id):
     user_emails = []
     user_endpoints = []
     for member in members:
+        print(member)
         user_id = member['identity_id']
-        if user_id == session.get('primary_identity'): continue
+        # TODO: Check if this is a correct design decision: an APPFL server himself is also an APPFL client
+        # if user_id == session.get('primary_identity'): continue
         if member['status'] != 'active': continue
-        user_names.append(member['membership_fields']['name'])
-        user_emails.append(member['membership_fields']['email'])
+        try:
+            user_names.append(member['membership_fields']['name'])
+        except:
+            if user_id == session.get('primary_identity'):
+                user_names.append(f"{session.get('name')} (You)")
+            else:
+                user_names.append(member['username'])
+        try:
+            user_emails.append(member['membership_fields']['email'])
+        except:
+            if user_id == session.get('primary_identity'):
+                user_emails.append(session.get('email'))
+            else:
+                user_emails.append("NONE")
         if os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id, 'client.yaml')):
             with open(os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id, 'client.yaml')) as f:
                 data = yaml.safe_load(f)
@@ -224,11 +240,17 @@ def browse_2(server_group_id=None, client_group_id=None):
 @authenticated
 def dashboard():    
     '''Load the dashboard page'''
-    gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
-    all_groups = gc.get_my_groups()
-    all_server_groups, all_client_groups = get_servers_clients(all_groups)
-    return render_template('dashboard.jinja2', all_server_groups=all_server_groups, all_client_groups=all_client_groups)
-
+    try:
+        # TODO: An error: when we restart the application and go to the dashboard page after some time, 
+        # the group access token may become invalid/expired. Think of some better solution to this.
+        gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+        all_groups = gc.get_my_groups()
+        all_server_groups, all_client_groups = get_servers_clients(all_groups)
+        return render_template('dashboard.jinja2', all_server_groups=all_server_groups, all_client_groups=all_client_groups)
+    except globus_sdk.services.groups.errors.GroupsAPIError as e:
+        # TODO: Check if this error-handling is valid when the error occurs next
+        session.update(is_authenticated=False)
+        return redirect(url_for('home', next=request.url))
 
 @app.route('/create_server', methods=['GET', 'POST'])
 @authenticated
@@ -271,24 +293,25 @@ def run_appfl(group_members, server_id, server_group_id, upload_folder):
         if user_id == server_id:
             data_dir = os.path.join(upload_folder, server_group_id, user_id)
             server_config = os.path.join(data_dir, 'appfl_config.yaml')
-        else:
-            data_dir = os.path.join(upload_folder, server_group_id, user_id)
-            # Check if the folder exists or not
-            if os.path.exists(data_dir):
-                # Check the availability/validity of the resources
-                with open(os.path.join(data_dir, 'client.yaml')) as f:
-                    data = yaml.safe_load(f)
-                endpoint_id = data['client']['endpoint_id']
-                for _ in range(5): # Wait for at most 5 seconds
-                    try:
-                        task_id = fxc.run(endpoint_id=endpoint_id, function_id=func_id)
-                        time.sleep(1)
-                        fxc.get_result(task_id)
-                        client_configs.append(os.path.join(data_dir, 'client.yaml'))
-                        dataloaders.append(os.path.join(data_dir, 'dataloader.py'))
-                        break
-                    except funcx.errors.error_types.TaskPending: continue
-                    except: break
+        # else:
+        #TODO: Check if this is a correct design decision: an APPFL server himself is also an APPFL client
+        data_dir = os.path.join(upload_folder, server_group_id, user_id)
+        # Check if the folder exists or not
+        if os.path.exists(data_dir):
+            # Check the availability/validity of the resources
+            with open(os.path.join(data_dir, 'client.yaml')) as f:
+                data = yaml.safe_load(f)
+            endpoint_id = data['client']['endpoint_id']
+            for _ in range(5): # Wait for at most 5 seconds
+                try:
+                    task_id = fxc.run(endpoint_id=endpoint_id, function_id=func_id)
+                    time.sleep(1)
+                    fxc.get_result(task_id)
+                    client_configs.append(os.path.join(data_dir, 'client.yaml'))
+                    dataloaders.append(os.path.join(data_dir, 'dataloader.py'))
+                    break
+                except funcx.errors.error_types.TaskPending: continue
+                except: break
     if len(client_configs) == 0:
         print("Error: No active client available, APPFL run is stopped!")
         return

@@ -96,7 +96,8 @@
               Privacy Budget (\(\epsilon\))
               <img src="{{url_for('static', filename='img/info2.png')}}" tabindex="0" class="info-icon" role="button" data-toggle="popover" data-trigger="focus" title="Privacy Budget" data-content="Stronger privacy as the value decreases, or enter 0 to disable privacy preserving."/>  
             </label>
-            <input type="number" id="privacy-budget" name="privacy-budget" class="form-control" placeholder="0 for diabled or number in (0,1]" required="required" tabindex="4" min="0" max="1" step="any">
+            {# TODO: What is the valid range for the budget?#}
+            <input type="number" id="privacy-budget" name="privacy-budget" class="form-control" placeholder="0 for disabled or number" required="required" tabindex="4" min="0" max="10" step="any">
           </div>
 
           {# Clip Value #}

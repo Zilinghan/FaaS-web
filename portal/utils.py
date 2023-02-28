@@ -40,8 +40,10 @@ def get_servers_clients(all_groups):
                     break
             if is_server:
                 servers.append(group)
-            else:
-                clients.append(group)
+            # TODO: Check if this is a correct design decision: an APPFL server himself is also an APPFL client
+            clients.append(group)
+            # else:
+            #     clients.append(group)
     return servers, clients
 
 def is_safe_redirect_url(target):
