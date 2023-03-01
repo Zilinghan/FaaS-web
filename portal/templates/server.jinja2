@@ -1,6 +1,6 @@
 {%extends "base.jinja2"%}
 
-{%block title%}{Create Server}{%endblock%}
+{%block title%}Server Config{%endblock%}
 
 
 {%block body%}
@@ -144,7 +144,16 @@
 
           <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
           {# Upload Model #}
+          <div>
+            <label style="margin-right:10%">
+            <input type="radio" name="model-type" value="template" checked> Template Model
+            </label>
+            <label>
+            <input type="radio" name="model-type" value="custom"> Custom Model
+            </label>
+          </div>
           {% set models = ['CNN']%}
+          <div id="template-models">
           <div class="form-group-inline">
             <label>
               Training Model
@@ -157,7 +166,7 @@
             </select>
           </div>
           {# Model parameters #}
-          <div class="form-group-grid">
+          <div class="form-group-grid" id="model-params-div">
               <label>channels</label>
               <input type="number" id="model-num-channels" name="model-num-channels" class="form-control" placeholder="" required="required" tabindex="6" min="1" step="1">
               <label>num classes</label>
@@ -166,6 +175,21 @@
               <input type="number" id="model-input-width" name="model-input-width" class="form-control" placeholder="" required="required" tabindex="8" min="1" step="1">
               <label>height</label>
               <input type="number" id="model-input-height" name="model-input-height" class="form-control" placeholder="" required="required" tabindex="9" min="1" step="1">
+          </div>
+          </div>
+
+          <div id="custom-models" style="display:none">
+            <div class="form-group-inline">
+              <label>Model File</label>
+              <input
+                type="file"
+                id="custom-model-file"
+                name="custom-model-file"
+                class="form-control"
+                placeholder="model.py"
+                accept=".py"
+              >
+            </div>
           </div>
           
 
@@ -269,6 +293,36 @@
           }
         }
       })
+      // Radio Button for Model Type Selection
+      const modelTypes = document.getElementsByName('model-type');
+
+      modelTypes[0].addEventListener('click', function(){
+        // Display the template model parameter selection div
+        document.getElementById('template-models').style.display = "block";
+        document.getElementById('custom-models').style.display = "none";
+        // Change the input requirements
+        const modelParamDiv = document.getElementById("model-params-div");
+        const modelParams = modelParamDiv.querySelectorAll("input");
+        for (let i = 0; i < modelParams.length; i++) {
+          console.log(modelParams[i].required);
+          modelParams[i].required = true;
+        }
+        document.getElementById("custom-model-file").required=false;
+      });
+
+      modelTypes[1].addEventListener('click', function(){
+        // Display the custome model update div
+        document.getElementById('template-models').style.display = "none";
+        document.getElementById('custom-models').style.display = "block";
+        // Change the input requirements
+        const modelParamDiv = document.getElementById("model-params-div");
+        const modelParams = modelParamDiv.querySelectorAll("input");        
+        for (let i = 0; i < modelParams.length; i++) {
+          console.log(modelParams[i].required);
+          modelParams[i].required = false;
+        }
+        document.getElementById("custom-model-file").required=true;
+      });
 
 
       $('#fed-alg-select').change(function() {

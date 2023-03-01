@@ -386,22 +386,30 @@ def load_server_config(form, server_group_id):
     if form['server-var-momentum'] < 0:
         error_count += 1
         flash(f"Error {error_count}: Server Variance Momentum cannot be negative!")
-    form['model-num-channels'] = int(form['model-num-channels'])
-    if form['model-num-channels'] <= 0:
-        error_count += 1
-        flash(f"Error {error_count}: Number of input channels must be positive!")
-    form['model-num-classes'] = int(form['model-num-classes'])
-    if form['model-num-classes'] <= 0:
-        error_count += 1
-        flash(f"Error {error_count}: Number of output classes must be positive!")
-    form['model-input-width'] = int(form['model-input-width'])
-    if form['model-input-width'] <= 0:
-        error_count += 1
-        flash(f"Error {error_count}: Input width must be positive!")
-    form['model-input-height'] = int(form['model-input-height'])
-    if form['model-input-height'] <= 0:
-        error_count += 1
-        flash(f"Error {error_count}: Input height must be positive!")
+    # If user chooses to use the template model
+    if form['model-type'] == 'template':
+        form['model-num-channels'] = int(form['model-num-channels'])
+        if form['model-num-channels'] <= 0:
+            error_count += 1
+            flash(f"Error {error_count}: Number of input channels must be positive!")
+        form['model-num-classes'] = int(form['model-num-classes'])
+        if form['model-num-classes'] <= 0:
+            error_count += 1
+            flash(f"Error {error_count}: Number of output classes must be positive!")
+        form['model-input-width'] = int(form['model-input-width'])
+        if form['model-input-width'] <= 0:
+            error_count += 1
+            flash(f"Error {error_count}: Input width must be positive!")
+        form['model-input-height'] = int(form['model-input-height'])
+        if form['model-input-height'] <= 0:
+            error_count += 1
+            flash(f"Error {error_count}: Input height must be positive!")
+    # If user uploads custom model
+    else:
+        user_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'))
+        model_file = request.files['custom-model-file']
+        model_file_path = os.path.join(user_upload_folder, 'model.py')
+        model_file.save(model_file_path)
     form['client-lr'] = float(form['client-lr'])
     if form['client-lr'] < 0:
         error_count += 1
@@ -419,7 +427,6 @@ def load_server_config(form, server_group_id):
         'algorithm': {},
         'training': {},
         'dataset': {},
-        'model': {},
         'server': {'data_dir': server_log_dir, 'output_dir': server_log_dir}
     }
     appfl_config['algorithm']['servername'] = form['fed-alg-select']
@@ -445,13 +452,16 @@ def load_server_config(form, server_group_id):
         'save_model_dirname': "./save_models"
     }
     appfl_config['dataset']['name'] = form['federation-name']
-    appfl_config['model_type'] = form['training-model']
-    appfl_config['model'] = {
-        'num_channel': form['model-num-channels'],
-        'num_classes': form['model-num-classes'],
-        'width': form['model-input-width'],
-        'height': form['model-input-height']
-    }
+    if form['model-type'] == 'template':
+        appfl_config['model_type'] = form['training-model']
+        appfl_config['model'] = {
+            'num_channel': form['model-num-channels'],
+            'num_classes': form['model-num-classes'],
+            'width': form['model-input-width'],
+            'height': form['model-input-height']
+        }
+    else:
+        appfl_config['model_file'] = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'), 'model.py')
     return error_count, appfl_config
 
 
@@ -470,13 +480,14 @@ def upload_server_config(server_group_id):
         return redirect(request.referrer)
     with open(os.path.join(user_upload_folder, 'appfl_config.yaml'), 'w') as f:
         yaml.dump(appfl_config, f, default_flow_style=False)
+
     # Start the APPFL training
     gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
     server_group = gc.get_group(server_group_id, include=["memberships"])
     group_members = [server_group["memberships"][i]["identity_id"] for i in range(len(server_group["memberships"]))]
     appfl_process = multiprocessing.Process(target=run_appfl, args=(group_members, session.get('primary_identity'), server_group_id, app.config['UPLOAD_FOLDER']))
     appfl_process.start()
-
+    flash("The federation is started!")
     return redirect(url_for('dashboard'))
 
     # TODO: (2) Set up max size for uploaded file - Done by setting app.config['MAX_CONTENT_LENGTH']
