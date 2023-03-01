@@ -117,6 +117,6 @@ This is how to create an EC2 instance. Please allocate some amount of disk memor
     Then enable the service
     ```
     sudo systemctl daemon-reload
-    sudo systemctl start helloworld
-    sudo systemctl enable helloworld
+    sudo systemctl start web
+    sudo systemctl enable web
     ```
