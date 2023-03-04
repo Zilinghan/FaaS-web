@@ -1,16 +1,43 @@
+import os
+import boto3
+import globus_sdk
+from portal import app
 from flask import request
 from threading import Lock
-
-import globus_sdk
-
 try:
     from urllib.parse import urlparse, urljoin
 except ImportError:
     from urlparse import urlparse, urljoin
-
-from portal import app
-
 FL_TAG = '__FLAAS'
+s3 = boto3.client('s3')
+
+def s3_download(bucket_name, key_name, file_folder, file_name):
+    '''
+    Download file with `key_name` from S3 bucket `bucket_name`, and store it locally to `file_name`.
+    Return true if the file exists and gets downloaded successfully, return false otherwise.
+    '''
+    try:
+        if not os.path.exists(file_folder):
+            os.makedirs(file_folder)
+        s3.download_file(Bucket=bucket_name, Key=key_name, Filename=os.path.join(file_folder, file_name))
+        return True
+    except Exception as e:
+        print(e)
+        return False
+    
+def s3_upload(bucket_name, key_name, file_name, delete_local=True):
+    '''
+    Upload the local file with name `file_name` to the S3 bucket `bucket_name` and save it as `key_name`.
+    User can choose whether to delete the uploaded local file by specifying `delete_local`
+    '''
+    try:
+        s3.upload_file(Filename=file_name, Bucket=bucket_name, Key=key_name)
+        if delete_local:
+            os.remove(file_name)
+        return True
+    except Exception as e:
+        print(e)
+        return False
 
 def load_portal_client():
     """Create an AuthClient for the portal"""
@@ -66,7 +93,6 @@ def get_safe_redirect():
         return url
 
     return '/'
-
 
 def get_portal_tokens(
         scopes=['openid', 'urn:globus:auth:scope:demo-resource-server:all', 'urn:globus:auth:scope:demo-resource-server:all[https://auth.globus.org/scopes/' + app.config['GRAPH_ENDPOINT_ID'] + '/https]']):
