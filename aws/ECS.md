@@ -10,3 +10,5 @@ This readme file contains the instructions on how to run one-time/batch task usi
 4. Create an IAM role for accessing ECS: use AmazonECS_FullAccess policy when creating the user. Then generate access key for the user, and note the access key information down.
 
 5. You can now require AWS ECS to launch a container to run a batch job for you using the template in [ecs-test.py](ecs-test.py). Specifically, replace `YOUR_ACCESS_KEY` and `YOUR_SECRETE_ACCESS_KEY` with the information you get after creating the IAM user, `CLUSTER_NAME` with the name of your cluster created in step 1, `TASK_DEF` with the name of the task definition you create in step 2, `YOUR_SUBNETS_IDx` with the subnet IDs you use when creating the cluster in step 1, `CONTAINER_NAME` with you give to your container image. Finally, pass parameters to the container as a list using the `params` variable.
+
+6. You can use AWS CloudWatch service to see the log of the running task.
