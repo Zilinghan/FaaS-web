@@ -1,135 +1,122 @@
-# Modern Research Data Portal
-Simple web app framework demonstrating how to build a data portal using
-the Globus [platform](https://www.globus.org/platform).
+# Deploy the Web App to AWS EC2 Instance
+This is how to create an EC2 instance. Please allocate some amount of disk memory (>16GB) for running this application. [**Start AWS EC2 Instance**](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EC2_GetStarted.html)
 
-## Overview
-This repository contains two separate server applications. The first, the "Portal," is an example "research portal"
-that demonstrates how to authenticate users with Globus [Auth](https://docs.globus.org/api/auth/), how to make requests against the Globus [Transfer API](https://docs.globus.org/api/transfer/), and how to interact with an HTTPS-enabled Globus Endpoint. All of the Portal code can be found in the `portal/` directory.
 
-The second application, the "Service," is an example "resource server" that demonstrates how a research portal can offload tasks to a separate service that has the capability to perform tasks on behalf of users. All of the Service code can be found in the `service/` directory.
+1. Connect to your EC2 instance using ssh
+    ```
+    ssh -i your-pem.pem ec2-user@your-ec2-instance-ipv4dns
+    ```
 
-`Note`: Both applications are configured with client credentials created for demo purposes only.
+2. Install `git` in your EC2 instance
+    ```
+    sudo yum update -y
+    sudo yum install git -y
+    ```
 
-## Getting Started
-The Globus Sample Data Portal requires Python 3.9 or newer.
+3. Generate `ssh-key` for your EC2 instance, then copy the key to Github to create an ssh-key for accessing github inside the EC2 instance.
+    ```
+    ssh-keygen -t rsa -b 4096 -C "your-email@illinois.edu"
+    cat ~/.ssh/id_rsa.pub
+    ```
 
-#### Set up your environment.
-* [OS X](#os-x)
-* [Linux](#linux-ubuntu)
-* [Windows](#windows)
-* [Amazon EC2](#amazon-ec2)
-* [Reverse Proxy with Nginx](#reverse-proxy-with-nginx)
+4. Allocate more memory from disk using swapfile. Run the following command to create a swap file with a size of 8 GB (you can adjust the size as needed):
+    ```
+    sudo fallocate -l 8G /swapfile
+    ```
+    Set the correct permissions for the swap file by running the following command:
+    ```
+    sudo chmod 600 /swapfile
+    ```
+    Set up the swap space on the file by running the following command:
+    ```
+    sudo mkswap /swapfile
+    ```
+    Enable the swap file by running the following command:
+    ```
+    sudo swapon /swapfile
+    ```
+    To make the swap file permanent across reboots, add an entry for the swap file to the `/etc/fstab` file. Open the `/etc/fstab` file in a text editor and add the following line at the end of the file:
+    ```
+    /swapfile swap swap defaults 0 0
+    ```
+5. Install `conda`
+    ```
+    mkdir conda
+    cd conda
+    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+    bash Miniconda3-latest-Linux-x86_64.sh
+    source ~/.bashrc
+    ```
 
-#### Create your own App registration for use in the Portal. 
+6. Clone the repository for APPFL and checkout to the funcx branch
+    ```
+    cd ~
+    git clone git@github.com:Zilinghan/FL-as-a-Service.git FaaS
+    cd FaaS
+    git checkout funcx
+    ```
+
+7. Configure the environment
+    ```
+    conda create -n appfl python=3.8
+    conda activate appfl
+    pip install -r requirements.txt
+    pip install -e .
+    ```
+
+8. Clone the repository for the web application: Federated Learning as a Service.
+    ```
+    cd ~
+    git clone git@github.com:Zilinghan/FaaS-web.git
+    ```
+
+9. Set the web application configurations: Go to the AWS EC2 console to get your EC2 instance **Public** IPv4 address, and replace `YOUR_IP` below to that IP address. 
+
+    [**Important Note**: If the flask app is running on port 8000, please make sure that you add an inbound rule to allow traffic on that port. (Add rule: select "Custom TCP Rule", enter 8000 for "Port Range", and enter "0.0.0.0/0" for "Source")]
+    ```
+    cd FaaS-web
+    sed -i 's/localhost/0.0.0.0/' run_portal.py
+    sed -i '4,//s/localhost/YOUR_IP/' portal/portal.conf
+    echo "SESSION_COOKIE_DOMAIN = 'YOUR_IP'" >> portal/portal.conf
+    ```
+
+10. Create your own App registration for use in the portal.
 * Visit the [Globus Developer Pages](https://developers.globus.org) to register an App.
 * If this is your first time visiting the Developer Pages you'll be asked to create a Project. A Project is a way to group Apps together.
 * When registering the App you'll be asked for some information, including the redirect URL and any scopes you will be requesting.
-    * Redirect URL: `https://localhost:5000/authcallback` (note: if using EC2 `localhost` should be replaced with the IP address of your instance).
-    * Scopes: `urn:globus:auth:scope:transfer.api.globus.org:all`, `openid`, `profile`, `email`
+    * Redirect URL: `https://YOUR_IP:8000/authcallback` (note: replace YOUR_IP with your EC2 instance public IPv4 address).
+
 * After creating your App the client id and secret can be copied into this project in the following two places:
     * `portal/portal.conf` in the `PORTAL_CLIENT_ID` and `PORTAL_CLIENT_SECRET` properties.
     * `service/service.conf` where the `PORTAL_CLIENT_ID` is used to validate the access token that the Portal sends to the Service.
 
-### OS X
+11. Start running the portal program, and then point your browser to `https://YOUR_IP:8000/`
+    ```
+    ./run_portal.py
+    ```
 
-##### Environment Setup
+12. To run the portal server on the background, we use Systemd boot manager for restart the server if the EC2 restarts or reboots for some reason. We create a `<projectname>.service` file in `/etc/systemd/system` folder and specify what would happen when the system reboots. 
 
-* Install python3
-* `git clone https://github.com/globus/globus-sample-data-portal`
-* `cd globus-sample-data-portal`
-* `virtualenv venv`
-* `source venv/bin/activate`
-* `pip install -r requirements.txt`
-
-##### Running the Portal App
-
-* `./run_portal.py`
-* point your browser to `https://localhost:5000`
-
-##### Running the Service App
-
-* `./run_service.py`
-* API is located at `https://localhost:5100/api`
-
-### Linux (Ubuntu)
-
-##### Environment Setup
-
-* `sudo apt-get update`
-* `sudo apt-get install python3-pip`
-* `sudo pip install virtualenv`
-* `sudo apt-get install git`
-* `git clone https://github.com/globus/globus-sample-data-portal`
-* `cd globus-sample-data-portal`
-* `virtualenv venv`
-* `source venv/bin/activate`
-* `pip install -r requirements.txt`
-
-##### Running the Portal App
-
-* `./run_portal.py`
-* point your browser to `https://localhost:5000`
-
-##### Running the Service App
-
-* `./run_service.py`
-* API is located at `https://localhost:5100/api`
-
-### Windows
-
-##### Environment Setup
-
-* Install Python3 (<https://www.python.org/downloads/windows/>)
-* `pip install virtualenv`
-* Install git (<https://git-scm.com/downloads>)
-* `git clone https://github.com/globus/globus-sample-data-portal`
-* `cd globus-sample-data-portal`
-* `virtualenv venv`
-* `venv\Scripts\activate`
-* `pip install -r requirements.txt`
-
-##### Running the Portal App
-
-* `python run_portal.py`
-* point your browser to `https://localhost:5000`
-
-##### Running the Service App
-
-* `python run_service.py`
-* API is located at `https://localhost:5100/api`
-
-### Amazon EC2
-
-##### Environment Setup
-
-* `git clone https://github.com/globus/globus-sample-data-portal`
-* `cd globus-sample-data-portal`
-* `virtualenv venv`
-* `source venv/bin/activate`
-* `pip install -r requirements.txt`
-* `sed -i 's/localhost/0.0.0.0/' run_portal.py`
-* `sed -i '4,//s/localhost/YOUR_IP/' portal/portal.conf`
-* `echo "SESSION_COOKIE_DOMAIN = 'YOUR_IP'" >> portal/portal.conf`
-
-##### Running the Portal App
-
-* `./run_portal.py`
-* point your web browser to `https://YOUR_IP:5000/`
-
-##### Running the Service App
-
-* `./run_service.py`
-* API is located at `https://localhost:5100/api`
-
-### Reverse Proxy with Nginx
-
-Deploying and fully configuring Nginx is out of scope of this document. However, if you wish to use Nginx as a reverse proxy, you can use the location block below:
-```
-  location / {
-    proxy_pass https://localhost:5000/;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Prefix /;
-  }
-```
+    First create the file:
+    ```
+    sudo vim /etc/systemd/system/web.service
+    ```
+    Then copy the following contents into this file. **Note**: you need to replace the value for the `WorkingDirectory` to the directory of your app (containing `run_portal.py`). For the first argument of `ExecStart`, it should be the **absolute** path of your python, which can be obtained by running `which python`.
+    ```
+    [Unit]
+    Description=Web App Deployment
+    After=network.target
+    [Service]
+    User=ec2-user
+    WorkingDirectory=/home/ec2-user/FaaS-web
+    ExecStart=/home/ec2-user/miniconda3/bin/python run_portal.py
+    Restart=always
+    [Install]
+    WantedBy=multi-user.target
+    ``` 
+    Then enable the service
+    ```
+    sudo systemctl daemon-reload
+    sudo systemctl start web
+    sudo systemctl enable web
+    ```
