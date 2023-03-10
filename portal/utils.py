@@ -4,12 +4,43 @@ import globus_sdk
 from portal import app
 from flask import request
 from threading import Lock
+from funcx import FuncXClient
+from funcx.sdk.web_client import FuncxWebClient
+from globus_sdk.scopes import AuthScopes, SearchScopes
 try:
     from urllib.parse import urlparse, urljoin
 except ImportError:
     from urlparse import urlparse, urljoin
+
 FL_TAG = '__FLAAS'
 s3 = boto3.client('s3')
+
+class FuncXLoginManager:
+    """Implements the funcx.sdk.login_manager.protocol.LoginManagerProtocol class."""
+    def __init__(self, authorizers: dict[str, globus_sdk.RefreshTokenAuthorizer]):
+        self.authorizers = authorizers
+
+    def get_auth_client(self) -> globus_sdk.AuthClient:
+        return globus_sdk.AuthClient(
+            authorizer=self.authorizers[AuthScopes.openid]
+        )
+
+    def get_search_client(self) -> globus_sdk.SearchClient:
+        return globus_sdk.SearchClient(
+            authorizer=self.authorizers[SearchScopes.all]
+        )
+
+    def get_funcx_web_client(self, *, base_url: str) -> FuncxWebClient:
+        return FuncxWebClient(
+            base_url=base_url,
+            authorizer=self.authorizers[FuncXClient.FUNCX_SCOPE],
+        )
+
+    def ensure_logged_in(self):
+        return True
+
+    def logout(self):
+        print("logout cannot be invoked from here!")
 
 def s3_download(bucket_name, key_name, file_folder, file_name):
     '''
@@ -38,6 +69,29 @@ def s3_upload(bucket_name, key_name, file_name, delete_local=True):
     except Exception as e:
         print(e)
         return False
+    
+def get_funcx_client(tokens):
+    """Obtain a funcx client for the authenticated user using the returned login token."""
+    # Obtain tokens from the input tokens
+    openid_token = tokens['auth.globus.org']['access_token']
+    search_token = tokens['search.api.globus.org']['access_token']
+    funcx_token = tokens['funcx_service']['access_token']
+
+    # Create authorizers from existing tokens
+    funcx_auth = globus_sdk.AccessTokenAuthorizer(funcx_token)
+    search_auth = globus_sdk.AccessTokenAuthorizer(search_token)
+    openid_auth = globus_sdk.AccessTokenAuthorizer(openid_token)
+
+    # Create a new login manager and use it to create a client
+    funcx_login_manager = FuncXLoginManager(
+        authorizers={FuncXClient.FUNCX_SCOPE: funcx_auth,
+                    SearchScopes.all: search_auth,
+                    AuthScopes.openid: openid_auth}
+    )
+
+    fxc = FuncXClient(login_manager=funcx_login_manager)
+    return fxc
+
 
 def load_portal_client():
     """Create an AuthClient for the portal"""
