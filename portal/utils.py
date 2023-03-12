@@ -15,6 +15,13 @@ except ImportError:
 FL_TAG = '__FLAAS'
 s3 = boto3.client('s3')
 
+ecs_client = boto3.client(
+    'ecs',
+    aws_access_key_id='AKIAYWL2LMMF576NPKWK',
+    aws_secret_access_key='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',
+    region_name='us-east-1'
+)
+
 class FuncXLoginManager:
     """Implements the funcx.sdk.login_manager.protocol.LoginManagerProtocol class."""
     def __init__(self, authorizers: dict[str, globus_sdk.RefreshTokenAuthorizer]):
@@ -92,6 +99,27 @@ def get_funcx_client(tokens):
     fxc = FuncXClient(login_manager=funcx_login_manager)
     return fxc
 
+def ecs_run_task(cmd):
+    response = ecs_client.run_task(
+        cluster='flaas-anl-test-cluster',
+        taskDefinition='pytest2-task-def-3',
+        count=1,
+        launchType='FARGATE',
+        networkConfiguration={
+            'awsvpcConfiguration': {
+                'subnets': ['subnet-0ae916ead3118ec21', 'subnet-0c88864adf8950099', 'subnet-023d1cdc4f0bc871a', 'subnet-0285ff6457e1fbe35', 'subnet-06d99e5eaad06ad79', 'subnet-06ac227a962b9bfde'],
+                
+                'assignPublicIp': 'ENABLED'
+            }
+        },
+        overrides = {
+            'containerOverrides': [{
+                'name': 'pytest2',
+                'command': cmd,
+            }]
+        }
+    )
+    return response['tasks'][0]['taskArn']
 
 def load_portal_client():
     """Create an AuthClient for the portal"""

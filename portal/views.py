@@ -14,7 +14,7 @@ from portal.decorators import authenticated
 from flask import (abort, flash, redirect, render_template, request, session, url_for)
 from globus_sdk import (RefreshTokenAuthorizer, TransferAPIError, TransferClient, TransferData)
 from portal.utils import (get_portal_tokens, get_safe_redirect, load_portal_client, load_group_client, \
-                          group_tagging, get_servers_clients, s3_download, s3_upload)
+                          group_tagging, get_servers_clients, s3_download, s3_upload, get_funcx_client, ecs_run_task)
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -166,6 +166,7 @@ def authcallback():
             primary_username=id_token.get('preferred_username'),
             primary_identity=id_token.get('sub'),
         )
+        print(session['tokens'])
 
         profile = database.load_profile(session['primary_identity'])
 
@@ -307,7 +308,8 @@ def endpoint_test():
     import torch
     return torch.cuda.is_available()
 
-def run_appfl(group_members, server_id, server_group_id, upload_folder):
+# This function should be deprecated: we need to use container to run APPFL
+def run_appfl(group_members, server_id, server_group_id, upload_folder, tokens):
     """
     Start running the APPFL algorithm. 
     TODO: Ideally, we want this function to run in an isolated container with its own file system, etc.
@@ -324,7 +326,8 @@ def run_appfl(group_members, server_id, server_group_id, upload_folder):
     spec.loader.exec_module(module)
 
     # Create funcX client for testing endpoint status
-    fxc = FuncXClient()
+    # fxc = FuncXClient()
+    fxc = get_funcx_client(tokens)
     func_id = fxc.register_function(endpoint_test)
 
     # Load APPFL configurations
@@ -617,9 +620,24 @@ def upload_server_config(server_group_id, run='True'):
         gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
         server_group = gc.get_group(server_group_id, include=["memberships"])
         group_members = [server_group["memberships"][i]["identity_id"] for i in range(len(server_group["memberships"]))]
-        appfl_process = multiprocessing.Process(target=run_appfl, args=(group_members, session.get('primary_identity'), server_group_id, app.config['UPLOAD_FOLDER']))
-        appfl_process.start()
-        flash("The federation is started!")
+        group_members_str = ""
+        for member in group_members:
+            group_members_str += member
+            group_members_str += ','
+        group_members_str = group_members_str[:-1]
+        print(f'Group members: {group_members_str}')
+        print(f'Server ID: {session.get("primary_identity")}')
+        print(f'Group ID: {server_group_id}')
+        print(f'Upload folder: {app.config["UPLOAD_FOLDER"]}')
+        print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
+        print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
+        print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
+        # Those parameters should be passed to the container
+        print(ecs_run_task([group_members_str, session.get("primary_identity"), server_group_id, app.config["UPLOAD_FOLDER"]]))
+
+        # appfl_process = multiprocessing.Process(target=run_appfl, args=(group_members, session.get('primary_identity'), server_group_id, app.config['UPLOAD_FOLDER']))
+        # appfl_process.start()
+        # flash("The federation is started!")
     else:
         flash("Configurations are saved successfully!")
     return redirect(url_for('dashboard'))
@@ -640,7 +658,8 @@ def status_check():
     endpoint_status = {}
     for key in request.args:
         endpoint_status[request.args[key]] = EndpointStatus.UNSET.value
-    fxc = FuncXClient()
+    # fxc = FuncXClient()
+    fxc = get_funcx_client(session['tokens'])
     func_id = fxc.register_function(endpoint_test)
     for endpoint_id in endpoint_status:
         if endpoint_id == '0': continue
