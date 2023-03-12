@@ -15,10 +15,11 @@ except ImportError:
 FL_TAG = '__FLAAS'
 s3 = boto3.client('s3')
 
+
 ecs_client = boto3.client(
     'ecs',
-    aws_access_key_id='AKIAYWL2LMMF576NPKWK',
-    aws_secret_access_key='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',
+    aws_access_key_id='',
+    aws_secret_access_key='',
     region_name='us-east-1'
 )
 
