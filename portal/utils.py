@@ -74,11 +74,15 @@ class FuncXLoginManager:
     def logout(self):
         print("logout cannot be invoked from here!")
 
+def s3_get_download_link(bucket_name, key_name):
+    """Obtain a link from AWS for downloading a file in S3 bucket."""
+    return s3.generate_presigned_url('get_object', Params={'Bucket': bucket_name, 'Key': key_name})
+
 def s3_download(bucket_name, key_name, file_folder, file_name):
-    '''
+    """
     Download file with `key_name` from S3 bucket `bucket_name`, and store it locally to `file_name`.
     Return true if the file exists and gets downloaded successfully, return false otherwise.
-    '''
+    """
     try:
         if not os.path.exists(file_folder):
             os.makedirs(file_folder)
@@ -89,10 +93,10 @@ def s3_download(bucket_name, key_name, file_folder, file_name):
         return False
     
 def s3_upload(bucket_name, key_name, file_name, delete_local=True):
-    '''
+    """
     Upload the local file with name `file_name` to the S3 bucket `bucket_name` and save it as `key_name`.
     User can choose whether to delete the uploaded local file by specifying `delete_local`
-    '''
+    """
     try:
         s3.upload_file(Filename=file_name, Bucket=bucket_name, Key=key_name)
         if delete_local:

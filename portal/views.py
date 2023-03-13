@@ -14,8 +14,8 @@ from portal.decorators import authenticated
 from flask import (abort, flash, redirect, render_template, request, session, url_for)
 from globus_sdk import (RefreshTokenAuthorizer, TransferAPIError, TransferClient, TransferData)
 from portal.utils import (get_portal_tokens, get_safe_redirect, load_portal_client, load_group_client, \
-                          group_tagging, get_servers_clients, s3_download, s3_upload, get_funcx_client, \
-                          ecs_run_task, dynamodb_get_tasks, dynamodb_append_task)
+                          group_tagging, get_servers_clients, s3_download, s3_upload, s3_get_download_link, \
+                          ecs_run_task, dynamodb_get_tasks, dynamodb_append_task, get_funcx_client)
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -245,7 +245,7 @@ def get_endpoint_information(members, group_id):
 @app.route('/browse/server/<server_group_id>', methods=['GET'])
 @app.route('/browse/client/<client_group_id>', methods=['GET'])
 @authenticated
-def browse_2(server_group_id=None, client_group_id=None):
+def browse_config(server_group_id=None, client_group_id=None):
     """
     Load the APPFL server/client configuration page
     Inputs:
@@ -262,6 +262,44 @@ def browse_2(server_group_id=None, client_group_id=None):
         client_group = gc.get_group(client_group_id)
         return render_template('client.jinja2', client_group=client_group, client_group_id=client_group_id)
     return render_template('dashboard.jinja2')
+
+@app.route('/browse/server-info/<server_group_id>', methods=['GET'])
+@app.route('/browse/client-info/<client_group_id>', methods=['GET'])
+def browse_info(server_group_id=None, client_group_id=None):
+    """
+    Load the APPFL server/client information page
+    Inputs:
+        - server_group_id: Globus group ID for the APPFL server 
+        - client_group_id: Globus group ID for the APPFL client 
+        Note: two inputs are mutually exclusive
+    """
+    pass
+    if server_group_id is not None:
+        return
+    if client_group_id is not None:
+        return render_template('client_info.jinja2', client_group_id=client_group_id)
+
+@app.route('/download/<file_type>/<client_group_id>', methods=['GET'])
+def download_file(file_type="", client_group_id=None):
+    if file_type == "dataloader" and client_group_id is not None:
+        return redirect(s3_get_download_link(S3_BUCKET_NAME, f'{client_group_id}/{session["primary_identity"]}/dataloader.py'))
+    pass
+
+@app.route('/get-client-info', methods=['GET'])
+def get_client_info():
+    client_info = {}
+    client_group_id = request.args['client_group_id']
+    client_info_key    = f'{client_group_id}/{session["primary_identity"]}/client.yaml'
+    client_info_folder = os.path.join(app.config['UPLOAD_FOLDER'], client_group_id, session.get('primary_identity'))
+    client_info_name   = 'client.yaml'
+    if s3_download(S3_BUCKET_NAME, client_info_key, client_info_folder, client_info_name):
+        with open(os.path.join(client_info_folder, client_info_name)) as f:
+            data = yaml.safe_load(f)
+            client_info = data['client']
+        os.remove(os.path.join(client_info_folder, client_info_name))
+        return client_info
+    else:
+        abort(404, 'User has not uploaded any configuration.')
 
 
 @app.route('/dashboard', methods=['GET'])

@@ -51,7 +51,7 @@
                       </div>
 
                       <div class="config">
-                        <a href="{{url_for('browse_2', server_group_id=group['id'])}}">
+                        <a href="{{url_for('browse_config', server_group_id=group['id'])}}">
                           <img src="{{url_for('static', filename='img/config.png')}}"/>
                           Configure
                         </a>
@@ -98,13 +98,13 @@
                 <td class="col-md-5 text-left">
                   {# <div class="group-row">
                     <i class="fa fa-server fa-2x"></i>&nbsp;
-                    <a href="{{url_for('browse_2', client_group_id=group['id'])}}" class="group-name">
+                    <a href="{{url_for('browse_config', client_group_id=group['id'])}}" class="group-name">
                       {{group["name"]}}
                     </a>
                   </div> #}
                   <div class="group-row">
                     <div class="group-name-container">
-                      <a href="#" class="group-name">
+                      <a href="{{url_for('browse_info', client_group_id=group['id'])}}" class="group-name">
                         <img src="{{url_for('static', filename='img/server.png')}}"/>
                         {{group["name"]}}
                       </a>
@@ -117,7 +117,7 @@
                         </a>
                       </div>
                       <div class="config">
-                        <a href="{{url_for('browse_2', client_group_id=group['id'])}}">
+                        <a href="{{url_for('browse_config', client_group_id=group['id'])}}">
                           <img src="{{url_for('static', filename='img/config.png')}}"/>
                           Configure
                         </a>
