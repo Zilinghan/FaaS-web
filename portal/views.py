@@ -14,7 +14,8 @@ from portal.decorators import authenticated
 from flask import (abort, flash, redirect, render_template, request, session, url_for)
 from globus_sdk import (RefreshTokenAuthorizer, TransferAPIError, TransferClient, TransferData)
 from portal.utils import (get_portal_tokens, get_safe_redirect, load_portal_client, load_group_client, \
-                          group_tagging, get_servers_clients, s3_download, s3_upload, get_funcx_client, ecs_run_task)
+                          group_tagging, get_servers_clients, s3_download, s3_upload, get_funcx_client, \
+                          ecs_run_task, dynamodb_get_tasks, dynamodb_append_task)
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -540,6 +541,7 @@ def load_server_config(form, server_group_id):
 
     # TODO: How to deal with this log file if we move things to cloud (data to S3, and probably the running in a container)
     server_log_dir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'), 'logs')
+    # server_log_dir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'))
 
     appfl_config = {
         'algorithm': {},
@@ -595,7 +597,6 @@ def upload_server_config(server_group_id, run='True'):
     # TODO:
     # (1) Test if I can pass the parameter run correctly
     # (2) Load default values based on previously saved parameters, and the default values will be passed as request.form after submission
-    
     upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'))
     if not os.path.exists(upload_folder):
         os.makedirs(upload_folder)
@@ -633,8 +634,19 @@ def upload_server_config(server_group_id, run='True'):
         print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
         print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
         # Those parameters should be passed to the container
-        print(ecs_run_task([group_members_str, session.get("primary_identity"), server_group_id, app.config["UPLOAD_FOLDER"]]))
-
+        task_arn = ecs_run_task([group_members_str, 
+                            session.get("primary_identity"), 
+                            server_group_id, 
+                            app.config["UPLOAD_FOLDER"],
+                            session['tokens']['funcx_service']['access_token'],
+                            session['tokens']['search.api.globus.org']['access_token'],
+                            session['tokens']['auth.globus.org']['access_token']
+        ])
+        task_id = task_arn.split('/')[-1]
+        print(f"Task Id: {task_id}")
+        if not dynamodb_append_task(server_group_id, task_id):
+            flash("An error occurs when adding the task!")
+        flash("The federation is started!")
         # appfl_process = multiprocessing.Process(target=run_appfl, args=(group_members, session.get('primary_identity'), server_group_id, app.config['UPLOAD_FOLDER']))
         # appfl_process.start()
         # flash("The federation is started!")

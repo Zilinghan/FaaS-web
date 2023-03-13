@@ -5,23 +5,47 @@ from portal import app
 from flask import request
 from threading import Lock
 from funcx import FuncXClient
+from botocore.exceptions import ClientError
 from funcx.sdk.web_client import FuncxWebClient
 from globus_sdk.scopes import AuthScopes, SearchScopes
+
 try:
     from urllib.parse import urlparse, urljoin
 except ImportError:
     from urlparse import urlparse, urljoin
 
 FL_TAG = '__FLAAS'
+
+# For local test purposes, where all the access key are configured using awscli
 s3 = boto3.client('s3')
+ecs = boto3.client('ecs')
+dynamodb = boto3.resource('dynamodb')
+dynamodb_table = dynamodb.Table('appfl-tasks')
 
+# For real case, you need to provide your own access key
 
-ecs_client = boto3.client(
-    'ecs',
-    aws_access_key_id='',
-    aws_secret_access_key='',
-    region_name='us-east-1'
-)
+# s3 = boto3.client(
+#     's3',
+#     aws_access_key_id='YOUR_ACCESS_KEY',
+#     aws_secret_access_key='YOUR_SECRET_ACCESS_KEY',
+#     region_name='us-east-1'
+# )
+
+# ecs = boto3.client(
+#     'ecs',
+#     aws_access_key_id='YOUR_ACCESS_KEY',
+#     aws_secret_access_key='YOUR_SECRET_ACCESS_KEY',
+#     region_name='us-east-1'
+# )
+
+# dynamodb = boto3.resource(
+#     'dynamodb',
+#     aws_access_key_id='YOUR_ACCESS_KEY',
+#     aws_secret_access_key='YOUR_SECRET_ACCESS_KEY',
+#     region_name='us-east-1'
+# )
+
+# dynamodb_table = dynamodb.Table('appfl-tasks')
 
 class FuncXLoginManager:
     """Implements the funcx.sdk.login_manager.protocol.LoginManagerProtocol class."""
@@ -101,7 +125,7 @@ def get_funcx_client(tokens):
     return fxc
 
 def ecs_run_task(cmd):
-    response = ecs_client.run_task(
+    response = ecs.run_task(
         cluster='flaas-anl-test-cluster',
         taskDefinition='pytest2-task-def-3',
         count=1,
@@ -121,6 +145,43 @@ def ecs_run_task(cmd):
         }
     )
     return response['tasks'][0]['taskArn']
+
+def dynamodb_get_tasks(group_id):
+    """Return all the task ids for the certain group"""
+    try:
+        response = dynamodb_table.get_item(Key={'group-id': group_id})
+    except ClientError as err:
+        print(
+            "Couldn't get tasks for group %s from table %s. Here's why: %s: %s" %(\
+            group_id, dynamodb_table.name, \
+            err.response['Error']['Code'], err.response['Error']['Message']))
+        raise
+    else:
+        if not 'Item' in response:
+            print('Tasks not found for group %s' %(group_id))
+            return None
+        return response['Item']['task-ids']
+
+def dynamodb_append_task(group_id, task_id):
+    """Add one task to a certain group"""
+    try:
+        dynamodb_table.update_item(
+            Key={'group-id': group_id},
+            UpdateExpression='set #t = list_append(#t, :val)',
+            ExpressionAttributeNames={'#t': 'task-ids'},
+            ExpressionAttributeValues={":val": [task_id]}
+        )
+        return True
+    except ClientError as err:
+        try: 
+            dynamodb_table.put_item(Item={'group-id': group_id, 'task-ids': [task_id]})
+            return True
+        except ClientError as err:
+            print(
+                "Couldn't get tasks for group %s from table %s. Here's why: %s: %s" %(\
+                group_id, dynamodb_table.name, \
+                err.response['Error']['Code'], err.response['Error']['Message']))
+            return False
 
 def load_portal_client():
     """Create an AuthClient for the portal"""
@@ -164,7 +225,6 @@ def is_safe_redirect_url(target):
     return redirect_url.scheme in ('http', 'https') and \
         host_url.netloc == redirect_url.netloc
 
-
 def get_safe_redirect():
     """https://security.openstack.org/guidelines/dg_avoid-unvalidated-redirects.html"""  # noqa
     url = request.args.get('next')
@@ -206,7 +266,6 @@ def get_portal_tokens(
             })
 
         return get_portal_tokens.access_tokens
-
 
 get_portal_tokens.lock = Lock()
 get_portal_tokens.access_tokens = None
