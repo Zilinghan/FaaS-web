@@ -41,19 +41,19 @@
     align-items: center;
 }
 
-.logging-container {
+.config-container {
     display: flex;
     align-items: center;
     /* border-width: 10px;
     border-style: dashed; */
 }
 
-.logging img{
+.config img{
     width: 30px;
     height: 30px;
 }
 
-.logging {
+.config {
     /* border-width: 10px;
     border-style: dashed; */
     margin-left: 10px;

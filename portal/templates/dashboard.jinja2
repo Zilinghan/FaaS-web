@@ -36,25 +36,35 @@
                 <td class="col-md-5 text-left">
                   <div class="group-row">
                     <div class="group-name-container">
-                      <img src="{{url_for('static', filename='img/server.png')}}"/>
-                      <a href="{{url_for('browse_2', server_group_id=group['id'])}}" class="group-name">
+                      <a href="#" class="group-name">
+                        <img src="{{url_for('static', filename='img/server.png')}}"/>
                         {{group["name"]}}
                       </a>
                     </div>
                     
-                    <div class="logging-container">
-                      <div class="logging">
-                        <img src="{{url_for('static', filename='img/globus.png')}}"/>
-                        <a href="https://app.globus.org/groups/{{group['id']}}" target="_blank">Group Manage</a>
+                    <div class="config-container">
+                      <div class="config">
+                        <a href="https://app.globus.org/groups/{{group['id']}}" target="_blank">
+                          <img src="{{url_for('static', filename='img/globus.png')}}"/>
+                          Group Manage
+                        </a>
                       </div>
-                      <div class="logging">
+
+                      <div class="config">
+                        <a href="{{url_for('browse_2', server_group_id=group['id'])}}">
+                          <img src="{{url_for('static', filename='img/config.png')}}"/>
+                          Configure
+                        </a>
+                      </div>
+
+                      {# <div class="config">
                         <img src="{{url_for('static', filename='img/log.png')}}"/>
                         <a href="{{url_for('appfl_log_page', server_group_id=group['id'])}}">Logfile</a>
                       </div>
-                      <div class="logging">
+                      <div class="config">
                         <img src="{{url_for('static', filename='img/tb.png')}}"/>
                         <a href="{{url_for('tensorboard_log_page', server_group_id=group['id'])}}">Tensorboard</a>
-                      </div>
+                      </div> #}
                     </div>
                   </div>
                 </td>
@@ -86,24 +96,31 @@
             {%for group in all_client_groups%}
               <tr>
                 <td class="col-md-5 text-left">
-                {# <div class="group-row">
-                  <i class="fa fa-server fa-2x"></i>&nbsp;
-                  <a href="{{url_for('browse_2', client_group_id=group['id'])}}" class="group-name">
-                    {{group["name"]}}
-                  </a>
-                </div> #}
-                <div class="group-row">
+                  {# <div class="group-row">
+                    <i class="fa fa-server fa-2x"></i>&nbsp;
+                    <a href="{{url_for('browse_2', client_group_id=group['id'])}}" class="group-name">
+                      {{group["name"]}}
+                    </a>
+                  </div> #}
+                  <div class="group-row">
                     <div class="group-name-container">
-                      <img src="{{url_for('static', filename='img/server.png')}}"/>
-                      <a href="{{url_for('browse_2', client_group_id=group['id'])}}" class="group-name">
+                      <a href="#" class="group-name">
+                        <img src="{{url_for('static', filename='img/server.png')}}"/>
                         {{group["name"]}}
                       </a>
                     </div>
-                    
-                    <div class="logging-container">
-                      <div class="logging">
-                        <img src="{{url_for('static', filename='img/globus.png')}}"/>
-                        <a href="https://app.globus.org/groups/{{group['id']}}" target="_blank">Group Information</a>
+                    <div class="config-container">
+                      <div class="config">
+                        <a href="https://app.globus.org/groups/{{group['id']}}" target="_blank">
+                          <img src="{{url_for('static', filename='img/globus.png')}}"/>
+                          Group Information
+                        </a>
+                      </div>
+                      <div class="config">
+                        <a href="{{url_for('browse_2', client_group_id=group['id'])}}">
+                          <img src="{{url_for('static', filename='img/config.png')}}"/>
+                          Configure
+                        </a>
                       </div>
                     </div>
                   </div>
