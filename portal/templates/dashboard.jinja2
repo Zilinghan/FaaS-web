@@ -36,7 +36,7 @@
                 <td class="col-md-5 text-left">
                   <div class="group-row">
                     <div class="group-name-container">
-                      <a href="#" class="group-name">
+                      <a href="{{url_for('browse_info', server_group_id=group['id'])}}" class="group-name">
                         <img src="{{url_for('static', filename='img/server.png')}}"/>
                         {{group["name"]}}
                       </a>

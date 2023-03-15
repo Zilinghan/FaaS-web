@@ -7,6 +7,7 @@ import globus_sdk
 import importlib.util
 import multiprocessing
 from enum import Enum
+from datetime import datetime
 from funcx import FuncXClient
 from tensorboard import program
 from portal import app, database, datasets
@@ -15,7 +16,7 @@ from flask import (abort, flash, redirect, render_template, request, session, ur
 from globus_sdk import (RefreshTokenAuthorizer, TransferAPIError, TransferClient, TransferData)
 from portal.utils import (get_portal_tokens, get_safe_redirect, load_portal_client, load_group_client, \
                           group_tagging, get_servers_clients, s3_download, s3_upload, s3_get_download_link, \
-                          ecs_run_task, dynamodb_get_tasks, dynamodb_append_task, get_funcx_client)
+                          ecs_run_task, ecs_task_status, dynamodb_get_tasks, dynamodb_append_task, get_funcx_client)
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -273,9 +274,12 @@ def browse_info(server_group_id=None, client_group_id=None):
         - client_group_id: Globus group ID for the APPFL client 
         Note: two inputs are mutually exclusive
     """
-    pass
+    gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
     if server_group_id is not None:
-        return
+        task_ids = dynamodb_get_tasks(server_group_id)
+        server_group = gc.get_group(server_group_id, include=["memberships"])
+        client_names, client_emails, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id)
+        return render_template('server_info.jinja2', server_group_id=server_group_id, client_names=client_names, client_endpoints=client_endpoints, client_emails=client_emails, task_ids=['1','2','3'])
     if client_group_id is not None:
         return render_template('client_info.jinja2', client_group_id=client_group_id)
 
@@ -699,6 +703,20 @@ class EndpointStatus(Enum):
     INACTIVE = 0            # Endpoint is not active (not started)
     ACTIVE_CPU = 1          # Endpoint does not have GPU
     ACTIVE_GPU = 2          # Endpoint has GPU available
+
+@app.route('/task-status', methods=['GET'])
+@authenticated
+def task_status():
+    task_status = {}
+    for key in request.args:
+        task_id = request.args[key]
+        task_status[task_id] = {}
+        task_status[task_id]['status'] = ecs_task_status(task_id)
+        task_status[task_id]['start-time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        task_status[task_id]['end-time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(task_status)
+    return task_status
+
 
 
 @app.route('/status-check', methods=['GET'])

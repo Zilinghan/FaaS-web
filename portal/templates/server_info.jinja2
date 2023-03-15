@@ -1,0 +1,172 @@
+{%extends "base.jinja2"%}
+
+{%block title%}Server Info{%endblock%}
+
+
+{%block body%}
+  {%include "header.jinja2"%}
+
+
+  <div class="container">
+
+    <div class="page-header">
+      <h1>Server Information</h1>
+    </div>
+    {{test}}
+    
+
+    <div class="row">
+      <div class="col-md-12">
+        <div class="task-info-container">
+          <div class="task-info-item task-info-header">Task ID</div>
+          <div class="task-info-item task-info-header">Status</div>
+          <div class="task-info-item task-info-header">Start Time</div>
+          <div class="task-info-item task-info-header">End Time</div>
+          <div class="task-info-item task-info-header">Config</div>
+          <div class="task-info-item task-info-header">Log</div>
+          <div class="task-info-item task-info-header">Report</div>
+          <div class="task-info-item task-info-header">Tensorboard</div>
+          {% for task_id in task_ids %}
+            <div class="task-info-item task-info-content">{{task_id}}</div>
+            <div class="task-info-item task-info-content" id="task_{{task_id}}_status">pending</div>
+            <div class="task-info-item task-info-content" id="task_{{task_id}}_starttime">now</div>
+            <div class="task-info-item task-info-content" id="task_{{task_id}}_endtime">now</div>
+            <div class="task-info-item task-info-content" id="task_{{task_id}}_configfile">
+              <a href="{{url_for('download_file', file_type='configuration', client_group_id=client_group_id)}}">
+                <img src="{{url_for('static', filename='img/config.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+              </a>
+            </div>
+            <div class="task-info-item task-info-content" id="task_{{task_id}}_logfile">
+              <a href="{{url_for('download_file', file_type='log', client_group_id=client_group_id)}}">
+                <img src="{{url_for('static', filename='img/log.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+              </a>
+            </div>
+            <div class="task-info-item task-info-content" id="task_{{task_id}}_reportfile">
+              <a href="{{url_for('download_file', file_type='report', client_group_id=client_group_id)}}">
+                <img src="{{url_for('static', filename='img/log.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+              </a>
+            </div>
+            <div class="task-info-item task-info-content" id="task_{{task_id}}_tbfile">
+              <a href="{{url_for('download_file', file_type='tensorboard', client_group_id=client_group_id)}}">
+                <img src="{{url_for('static', filename='img/tb.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+              </a>
+            </div>
+          {% endfor %}
+        </div>
+        
+        <div class="endpoint-status-table">
+          <div class="endpoint-status-row">
+            <div class="endpoint-status-title first-column"><p>Client Endpoints</p></div>
+            <div class="endpoint-status-title second-column"><p>Status</p></div>
+            <div class="endpoint-status-title third-column"><p>Email</p></div>
+          </div>
+          {% for i in range(client_names|length)%}
+            <div class="endpoint-status-row">
+              <div class="endpoint-status-cell first-column">{{client_names[i]}}</div>
+              <div class="endpoint-status-cell second-column">
+                {% if client_endpoints[i] == '0'%}
+                  {# <img id="status_{{client_names[i]}}_{{client_endpoints[i]}}" src="{{url_for('static', filename='img/unset.png')}}" data-toggle="popover" data-content="The client endpoint is not set or invalid!" data-placement="left" role="button" data-trigger="focus"/> #}
+                  <img id="status_{{client_names[i]}}_{{client_endpoints[i]}}" src="{{url_for('static', filename='img/unset-hex.png')}}" tabindex="0" role="button" data-toggle="popover" data-trigger="focus" title="Endpoint Status" data-content="The client endpoint is either unset or invalid!" data-placement="left"/>
+                {% else %}
+                  {# <img id="status_{{client_names[i]}}_{{client_endpoints[i]}}" src="{{url_for('static', filename='img/loading.gif')}}" data-toggle="popover" data-content="Checking the status of the client endpoint!" data-placement="left" role="button" data-trigger="focus"/> #}
+                  <img id="status_{{client_names[i]}}_{{client_endpoints[i]}}" src="{{url_for('static', filename='img/loading.gif')}}" tabindex="0" role="button" data-toggle="popover" data-trigger="focus" title="Endpoint Status" data-content="Checking the status of the client endpoint......" data-placement="left"/>
+                {% endif %}
+              </div>
+              <div class="endpoint-status-cell third-column">
+                <a href="mailto:{{client_emails[i]}}"><img src="{{url_for('static', filename='img/email.png')}}" role="button" style="cursor: pointer;"/></a>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
+
+        <div class="form-group">
+          <button class="btn btn-secondary" onclick="window.location.href='{{ url_for( 'dashboard') }}';">Back</button>
+        </div>
+
+        {# TODO: We can support more federated algorithm later#}
+
+      </div>
+    </div>
+
+  </div> <!-- container -->
+
+  <script>
+    $(document).ready(function() {
+      $(function () {
+        $('[data-toggle="popover"]').popover()
+      })
+      {# Obtain task infomation #}
+
+      var task_ids = {{task_ids|safe}}
+      var sent_ids = {};
+      for (var i = 0; i < task_ids.length; i++) {
+        sent_ids[i] = task_ids[i];
+      }
+      $.ajax({
+        url: '/task-status',
+        method: 'GET',
+        data: {task_ids: sent_ids},
+        success: function(resp){
+          var task_ids = Object.keys(resp);
+          console.log(Object.keys(resp));
+          for (var i = 0; i < task_ids.length; i++) {
+            document.getElementById(`task_${task_ids[i]}_status`).innerHTML = resp[task_ids[i]]['status'];
+            document.getElementById(`task_${task_ids[i]}_starttime`).innerHTML = resp[task_ids[i]]['start-time'];
+            document.getElementById(`task_${task_ids[i]}_endtime`).innerHTML = resp[task_ids[i]]['end-time'];
+          }
+        }
+      })
+      
+
+
+
+
+      {# Endpoint Health Status Check #}
+      // Obtain the given endpoints to send, and generate an endpoint-name dictionary
+      var client_endpoints = {{client_endpoints|safe}};
+      var client_names = {{client_names|safe}}
+      var sent_data= {};
+      var endpoint_name_dict = {}
+      for (var i = 0; i < client_endpoints.length; i++){
+        if (client_endpoints[i] != '0') {
+          sent_data[i] = client_endpoints[i];
+          endpoint_name_dict[client_endpoints[i]] = client_names[i];
+        }
+      }
+      {# console.log(endpoint_name_dict)
+      console.log(sent_data); #}
+      // Send the endpoints for status checking
+      {# $.ajax({
+        url: '/status-check',
+        method: 'GET',
+        data: {endpoints: sent_data},
+        contentType: 'multipart/form-data',
+        success: function(resp){
+          console.log(Object.keys(resp))
+          var endpoints = Object.keys(resp);
+          for (var i = 0; i < endpoints.length; i++) {
+            if (resp[endpoints[i]] == '0') {
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/inactive-hex.png')}}';
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data-content', 'The client endpoint is inactive or stopped!');
+            }
+            else if (resp[endpoints[i]] == '1') {
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/set-hex.png')}}';
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data-content', 'The client endpoint is active with CPU available!'); 
+            }
+            else if (resp[endpoints[i]] == '2') {
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/set-hex.png')}}';
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data-content', 'The client endpoint is active with GPU available!');
+            }
+            else {
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/unset-hex.png')}}';
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data_content', 'The client endpoint is either unset or invalid!');
+            }
+          }
+        }
+      });   #}
+    });
+  </script>
+{%endblock%}
+

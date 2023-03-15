@@ -150,6 +150,10 @@ def ecs_run_task(cmd):
     )
     return response['tasks'][0]['taskArn']
 
+def ecs_task_status(task_arn):
+    """TODO: Fill this up"""
+    return 'STOPPED'
+
 def dynamodb_get_tasks(group_id):
     """Return all the task ids for the certain group"""
     try:

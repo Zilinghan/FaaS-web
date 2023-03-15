@@ -181,3 +181,63 @@
     height: 100%;
     cursor: pointer;
 }
+
+.task-info-container {
+    display: grid;
+    grid-template-columns: 24% 8% 17% 17% 7% 7% 7% 11%;
+    grid-gap: 0.4%;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px;
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+}
+
+.task-info-header {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.task-info-content {
+    font-size: 14px;
+}
+
+.task-info-item {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+    color: #333;
+}
+
+.task-info-item:nth-child(8n + 1) {
+    grid-column: 1 / 2;
+}
+
+.task-info-item:nth-child(8n + 2) {
+    grid-column: 2 / 3;
+}
+
+.task-info-item:nth-child(8n + 3) {
+    grid-column: 3 / 4;
+}
+
+.task-info-item:nth-child(9n + 4) {
+    grid-column: 4 / 5;
+}
+
+.task-info-item:nth-child(8n + 5) {
+    grid-column: 5 / 6;
+}
+
+.task-info-item:nth-child(8n + 6) {
+    grid-column: 6 / 7;
+}
+
+.task-info-item:nth-child(8n + 7) {
+    grid-column: 7 / 8;
+}
+
+.task-info-item:nth-child(8n + 8) {
+    grid-column: 8 / 9;
+}
