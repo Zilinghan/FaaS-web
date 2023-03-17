@@ -49,7 +49,7 @@ dynamodb_table = dynamodb.Table('appfl-tasks')
 
 class FuncXLoginManager:
     """Implements the funcx.sdk.login_manager.protocol.LoginManagerProtocol class."""
-    def __init__(self, authorizers: dict[str, globus_sdk.RefreshTokenAuthorizer]):
+    def __init__(self, authorizers):
         self.authorizers = authorizers
 
     def get_auth_client(self) -> globus_sdk.AuthClient:
