@@ -222,7 +222,7 @@
     grid-column: 3 / 4;
 }
 
-.task-info-item:nth-child(9n + 4) {
+.task-info-item:nth-child(8n + 4) {
     grid-column: 4 / 5;
 }
 
@@ -240,4 +240,55 @@
 
 .task-info-item:nth-child(8n + 8) {
     grid-column: 8 / 9;
+}
+
+
+.endpoint-info-container {
+    display: grid;
+    grid-template-columns: 22% 32% 29% 16.5%;
+    grid-gap: 0.4%;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px;
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+}
+
+.endpoint-info-header {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.endpoint-info-content {
+    font-size: 14px;
+}
+
+.endpoint-info-content img {
+    width: 30px;
+}
+
+.endpoint-info-item {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+    color: #333;
+    display: flex;
+    align-items: center;
+}
+
+.endpoint-info-item:nth-child(4n + 1) {
+    grid-column: 1 / 2;
+}
+
+.endpoint-info-item:nth-child(4n + 2) {
+    grid-column: 2 / 3;
+}
+
+.endpoint-info-item:nth-child(4n + 3) {
+    grid-column: 3 / 4;
+}
+
+.endpoint-info-item:nth-child(4n + 4) {
+    grid-column: 4 / 5;
 }

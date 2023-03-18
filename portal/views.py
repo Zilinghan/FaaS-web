@@ -14,9 +14,11 @@ from portal import app, database, datasets
 from portal.decorators import authenticated
 from flask import (abort, flash, redirect, render_template, request, session, url_for)
 from globus_sdk import (RefreshTokenAuthorizer, TransferAPIError, TransferClient, TransferData)
-from portal.utils import (get_portal_tokens, get_safe_redirect, load_portal_client, load_group_client, \
-                          group_tagging, get_servers_clients, s3_download, s3_upload, s3_get_download_link, \
-                          ecs_run_task, ecs_task_status, dynamodb_get_tasks, dynamodb_append_task, get_funcx_client)
+from portal.utils import (get_portal_tokens, get_safe_redirect, group_tagging, get_servers_clients, \
+                          load_portal_client, load_group_client, \
+                          s3_download, s3_upload, s3_get_download_link, \
+                          ecs_run_task, ecs_task_status, ecs_arn2id, \
+                          dynamodb_get_tasks, dynamodb_append_task, get_funcx_client)
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -196,7 +198,7 @@ def get_endpoint_information(members, group_id):
         - user_emails: list of emails of group emails
         - user_endpoint: list of funcx endpoints provided by group members
     """
-    user_names, user_emails, user_endpoints = [], [], []
+    user_names, user_emails, user_orgs, user_endpoints = [], [], [], []
     for member in members:
         user_id = member['identity_id']
         # TODO: Check if this is a correct design decision: an APPFL server himself is also an APPFL client
@@ -218,7 +220,13 @@ def get_endpoint_information(members, group_id):
                 user_emails.append(session.get('email'))
             else:
                 user_emails.append("NONE") # TODO: how to deal with a user without any valid email?
-        
+        try:
+            user_orgs.append(member['membership_fields']['organization'])
+        except:
+            if user_id == session.get('primary_identity'):
+                user_orgs.append(f"{session.get('institution')}")
+            else:
+                user_orgs.append("")
         # Obtain user endpoints
         client_config_folder = os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id)
         client_config_key    = f'{group_id}/{user_id}/client.yaml'
@@ -240,7 +248,7 @@ def get_endpoint_information(members, group_id):
         #     print(member)
         #     user_endpoints.append('0')
     print(user_endpoints)
-    return user_names, user_emails, user_endpoints
+    return user_names, user_emails, user_orgs, user_endpoints
 
 
 @app.route('/browse/server/<server_group_id>', methods=['GET'])
@@ -257,8 +265,13 @@ def browse_config(server_group_id=None, client_group_id=None):
     gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
     if server_group_id is not None:
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id)
-        return render_template('server.jinja2', server_group_id=server_group_id, client_names=client_names, client_endpoints=client_endpoints, client_emails=client_emails)
+        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id)
+        return render_template('server.jinja2', \
+                               server_group_id=server_group_id, \
+                               client_names=client_names, \
+                               client_endpoints=client_endpoints, \
+                               client_emails=client_emails, \
+                               client_orgs=client_orgs)
     if client_group_id is not None:
         client_group = gc.get_group(client_group_id)
         return render_template('client.jinja2', client_group=client_group, client_group_id=client_group_id)
@@ -276,10 +289,20 @@ def browse_info(server_group_id=None, client_group_id=None):
     """
     gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
     if server_group_id is not None:
-        task_ids = dynamodb_get_tasks(server_group_id)
+        task_arns = dynamodb_get_tasks(server_group_id)
+        task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
+        print(task_arns)
+        print(task_ids)
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id)
-        return render_template('server_info.jinja2', server_group_id=server_group_id, client_names=client_names, client_endpoints=client_endpoints, client_emails=client_emails, task_ids=['1','2','3'])
+        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id)
+        return render_template('server_info.jinja2', \
+                                server_group_id=server_group_id, \
+                                client_names=client_names, \
+                                client_endpoints=client_endpoints, \
+                                client_emails=client_emails, \
+                                client_orgs=client_orgs, \
+                                task_ids=task_ids,
+                                task_arns=task_arns)
     if client_group_id is not None:
         return render_template('client_info.jinja2', client_group_id=client_group_id)
 
@@ -684,9 +707,7 @@ def upload_server_config(server_group_id, run='True'):
                             session['tokens']['search.api.globus.org']['access_token'],
                             session['tokens']['auth.globus.org']['access_token']
         ])
-        task_id = task_arn.split('/')[-1]
-        print(f"Task Id: {task_id}")
-        if not dynamodb_append_task(server_group_id, task_id):
+        if not dynamodb_append_task(server_group_id, task_arn):
             flash("An error occurs when adding the task!")
         flash("The federation is started!")
         # appfl_process = multiprocessing.Process(target=run_appfl, args=(group_members, session.get('primary_identity'), server_group_id, app.config['UPLOAD_FOLDER']))
@@ -709,12 +730,13 @@ class EndpointStatus(Enum):
 def task_status():
     task_status = {}
     for key in request.args:
-        task_id = request.args[key]
+        task_arn = request.args[key]
+        task_id = ecs_arn2id(task_arn)
         task_status[task_id] = {}
-        task_status[task_id]['status'] = ecs_task_status(task_id)
-        task_status[task_id]['start-time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        task_status[task_id]['end-time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(task_status)
+        status, starttime, endtime = ecs_task_status(task_arn)
+        task_status[task_id]['status'] = status
+        task_status[task_id]['start-time'] = starttime
+        task_status[task_id]['end-time'] = endtime
     return task_status
 
 

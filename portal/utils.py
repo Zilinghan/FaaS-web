@@ -21,31 +21,8 @@ s3 = boto3.client('s3')
 ecs = boto3.client('ecs')
 dynamodb = boto3.resource('dynamodb')
 dynamodb_table = dynamodb.Table('appfl-tasks')
-
-# For real case, you need to provide your own access key
-
-# s3 = boto3.client(
-#     's3',
-#     aws_access_key_id='YOUR_ACCESS_KEY',
-#     aws_secret_access_key='YOUR_SECRET_ACCESS_KEY',
-#     region_name='us-east-1'
-# )
-
-# ecs = boto3.client(
-#     'ecs',
-#     aws_access_key_id='YOUR_ACCESS_KEY',
-#     aws_secret_access_key='YOUR_SECRET_ACCESS_KEY',
-#     region_name='us-east-1'
-# )
-
-# dynamodb = boto3.resource(
-#     'dynamodb',
-#     aws_access_key_id='YOUR_ACCESS_KEY',
-#     aws_secret_access_key='YOUR_SECRET_ACCESS_KEY',
-#     region_name='us-east-1'
-# )
-
-# dynamodb_table = dynamodb.Table('appfl-tasks')
+# Hard code for ECS information
+ECS_CLUSTER = 'flaas-anl-test-cluster' 
 
 class FuncXLoginManager:
     """Implements the funcx.sdk.login_manager.protocol.LoginManagerProtocol class."""
@@ -151,8 +128,39 @@ def ecs_run_task(cmd):
     return response['tasks'][0]['taskArn']
 
 def ecs_task_status(task_arn):
-    """TODO: Fill this up"""
-    return 'STOPPED'
+    """Return the status, """
+    response = ecs.describe_tasks(cluster=ECS_CLUSTER, tasks=[task_arn])
+    try:
+        task = response['tasks'][0]
+        status = task['containers'][0]['lastStatus']
+    except:
+        status = 'UNKNOWN'
+        starttime = ""
+        endtime = ""
+        return status, starttime, endtime
+    if status == 'PENDING':
+        starttime = ""
+        endtime = ""
+    elif status == 'RUNNING':
+        try:
+            starttime = task['createdAt'].strftime("%Y-%m-%d %H:%M:%S")
+        except:
+            starttime = ""
+        endtime = ""
+    else:
+        try:
+            starttime = task['createdAt'].strftime("%Y-%m-%d %H:%M:%S")
+        except:
+            starttime = ""
+        try:
+            endtime = task['executionStoppedAt'].strftime("%Y-%m-%d %H:%M:%S")
+        except:
+            endtime = ""
+    return status, starttime, endtime
+
+def ecs_arn2id(task_arn):
+    """Convert the ARN of ECS task into ID"""
+    return task_arn.split('/')[-1]
 
 def dynamodb_get_tasks(group_id):
     """Return all the task ids for the certain group"""
