@@ -8,7 +8,7 @@ import importlib.util
 from enum import Enum
 from datetime import datetime
 from funcx import FuncXClient
-from tensorboard import program
+# from tensorboard import program
 from portal import app, database, datasets
 from portal.decorators import authenticated
 from flask import (abort, flash, redirect, render_template, request, session, url_for)
@@ -795,6 +795,7 @@ def tensorboard_log_page(server_group_id):
     """
     Return the tensorboard log page for the appfl run of group `server_group_id`
     """
+    pass
     #TODO: Include a 404 page if there is no log file available
     #TODO: currently the tensorboard is launched using http, later we should launch it using https
     #TODO: This implementation still launches a new TensorBoard server every time 
@@ -802,18 +803,18 @@ def tensorboard_log_page(server_group_id):
     #      the server only once and keep it running in the background, or use a 
     #      different method of embedding the TensorBoard page (such as using 
     #      JavaScript to load the page dynamically).
-    logdir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'), 'logs', 'tensorboard')
-    if os.path.isdir(logdir):
-        tb = program.TensorBoard()  
-        tb.configure(argv=[None, '--logdir', logdir, '--host', '0.0.0.0'])
-        url = tb.launch()
-        port = url.split(':')[-1]
-        url = f'http://{app.config["SESSION_COOKIE_DOMAIN"]}:{port}'
-        return redirect(url)
-        return render_template('tensorboard_log.jinja2', url=url)
-    else:
-        flash("Error: There is not log file for this server!")
-        return redirect(request.referrer)
+    # logdir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'), 'logs', 'tensorboard')
+    # if os.path.isdir(logdir):
+    #     tb = program.TensorBoard()  
+    #     tb.configure(argv=[None, '--logdir', logdir, '--host', '0.0.0.0'])
+    #     url = tb.launch()
+    #     port = url.split(':')[-1]
+    #     url = f'http://{app.config["SESSION_COOKIE_DOMAIN"]}:{port}'
+    #     return redirect(url)
+    #     return render_template('tensorboard_log.jinja2', url=url)
+    # else:
+    #     flash("Error: There is not log file for this server!")
+    #     return redirect(request.referrer)
 
 
 @app.errorhandler(413)
