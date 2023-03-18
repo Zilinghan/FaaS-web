@@ -5,7 +5,6 @@ import funcx
 import requests
 import globus_sdk
 import importlib.util
-import multiprocessing
 from enum import Enum
 from datetime import datetime
 from funcx import FuncXClient
