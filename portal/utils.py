@@ -134,7 +134,7 @@ def ecs_task_status(task_arn):
         task = response['tasks'][0]
         status = task['containers'][0]['lastStatus']
     except:
-        status = 'UNKNOWN'
+        status = 'FINISHED'
         starttime = ""
         endtime = ""
         return status, starttime, endtime
