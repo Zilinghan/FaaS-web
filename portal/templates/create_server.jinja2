@@ -13,7 +13,7 @@
 
     <div class="row">
       <div class="col-md-6 col-md-offset-3">
-        <form role="form" action="{{url_for('create_server')}}" method="POST">
+        <form role="form" onsubmit="disableSaveButton()" action="{{url_for('create_server')}}" method="POST">
           <div class="panel panel-info small-font">
             <div class="panel-heading">
               Create Globus Group 
@@ -50,13 +50,21 @@
           </div>
 
           <div class="form-group">
-            <button class="btn btn-secondary" onclick="window.location.href='{{ url_for( 'dashboard') }}';">Back</button>
-            <button type="submit" class="btn btn-primary">Save</button>
+            {# <button class="btn btn-secondary" onclick="window.location.href='{{ url_for( 'dashboard') }}';">Back</button> #}
+            <button class="btn btn-secondary" onclick="disableBackButton()" id="create-server-page-back-btn">Back</button>
+            <button type="submit" class="btn btn-primary" id="create-server-page-save-btn">Save</button>
           </div>
         </form>
       </div>
     </div>
-
-
   </div> <!-- container -->
+  <script>
+  function disableBackButton() {
+    document.getElementById('create-server-page-back-btn').disabled=true;
+    window.location.href = '{{ url_for( 'dashboard') }}';
+  }
+  function disableSaveButton() {
+    document.getElementById('create-server-page-save-btn').disabled=true;
+  }
+  </script>
 {%endblock%}

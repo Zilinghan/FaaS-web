@@ -12,7 +12,7 @@
 
     <div class="row">
       <div class="col-md-6 col-md-offset-3">
-        <form role="form" action="{{url_for('upload_client_config', client_group_id=client_group_id)}}" method="POST" enctype = "multipart/form-data">
+        <form role="form" onclick="disableSaveButton()" action="{{url_for('upload_client_config', client_group_id=client_group_id)}}" method="POST" enctype = "multipart/form-data">
           <div class="panel panel-info small-font">
             <div class="panel-heading">
               Create funcX Endpoint 
@@ -90,12 +90,20 @@
           </div>
 
           <div class="form-group">
-            <button class="btn btn-secondary" onclick="window.location.href='{{ url_for( 'dashboard') }}';">Back</button>
-            <button type="submit" class="btn btn-primary">Save</button>
+            <button class="btn btn-secondary" onclick="disableBackButton()" id="client-config-page-back-btn">Back</button>
+            <button type="submit" class="btn btn-primary" id="client-config-page-save-btn">Save</button>
           </div>
         </form>
       </div>
     </div>
-
   </div> <!-- container -->
+  <script>
+    function disableBackButton(){
+      document.getElementById('client-config-page-back-btn').disabled = true;
+      window.location.href='{{ url_for( 'dashboard') }}';
+    }
+    function disableSaveButton() {
+      document.getElementById('client-config-page-save-btn').disabled = true;
+    }
+  </script>
 {%endblock%}

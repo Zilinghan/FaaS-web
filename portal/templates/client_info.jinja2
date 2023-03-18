@@ -76,7 +76,7 @@
           </div>
         </form>
         <div class="form-group">
-          <button class="btn btn-secondary" onclick="window.location.href='{{ url_for( 'dashboard') }}';">Back</button>
+          <button class="btn btn-secondary" onclick="disableBackButton()" id="client-info-page-back-btn">Back</button>
         </div>
       </div>
     </div>
@@ -84,6 +84,11 @@
   </div> <!-- container -->
 
   <script>
+  function disableBackButton(){
+    document.getElementById('client-info-page-back-btn').disabled = true;
+    window.location.href='{{ url_for( 'dashboard') }}';
+  }
+
   $(document).ready(function(){
     $.ajax({
         url: '/get-client-info',

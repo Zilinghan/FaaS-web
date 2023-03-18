@@ -231,8 +231,8 @@
 
           {# Submit Buttons #}
           <div class="form-group">
-            <button class="btn btn-secondary" onclick="window.location.href='{{ url_for( 'dashboard') }}';">Back</button>
-            <button type="submit" class="btn btn-primary" id="submit-btn" >Start</button>
+            <button class="btn btn-secondary" onclick="disableBackButton()" id="server-config-page-back-btn">Back</button>
+            <button type="submit" class="btn btn-primary" id="server-config-page-start-btn" >Start</button>
           </div>
         </form>
 
@@ -244,8 +244,12 @@
   </div> <!-- container -->
 
   <script>
+    function disableBackButton() {
+      document.getElementById('server-config-page-back-btn').disabled = true;
+      window.location.href='{{ url_for( 'dashboard') }}';
+    }
     function disableSubmitButton() {
-      var submitButton = document.getElementById('submit-btn');
+      var submitButton = document.getElementById('server-config-page-start-btn');
       submitButton.disabled = true;
     }
     $(document).ready(function() {

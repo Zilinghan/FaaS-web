@@ -12,9 +12,7 @@
     <div class="page-header">
       <h1>Server Information</h1>
     </div>
-    {{test}}
     
-
     <div class="row">
       <div class="col-md-12">
         <div class="task-info-container">
@@ -82,9 +80,8 @@
         <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
 
         <div class="form-group">
-          <button class="btn btn-secondary" onclick="window.location.href='{{ url_for( 'dashboard') }}';">Back</button>
+          <button class="btn btn-secondary" onclick="disableBackButton()" id="server-info-page-back-btn">Back</button>
         </div>
-
         {# TODO: We can support more federated algorithm later#}
 
       </div>
@@ -93,6 +90,10 @@
   </div> <!-- container -->
 
   <script>
+    function disableBackButton() {
+      document.getElementById('server-info-page-back-btn').disabled = true;
+      window.location.href='{{ url_for( 'dashboard') }}';
+    }
     $(document).ready(function() {
       $(function () {
         $('[data-toggle="popover"]').popover()
@@ -119,10 +120,6 @@
         }
       })
       
-
-
-
-
       {# Endpoint Health Status Check #}
       // Obtain the given endpoints to send, and generate an endpoint-name dictionary
       var client_endpoints = {{client_endpoints|safe}};

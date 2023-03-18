@@ -12,7 +12,7 @@
     </div>
 
     <div class="intro-header">
-      <h2>Servers</h2>
+      <h2>Federations</h2>
     </div>
 
     <div class="row">
@@ -22,10 +22,10 @@
             <th class="col-md-5 text-left">
               <div class="create-btn">
               {%if all_server_groups%}
-                Server Name
+                Federation Name
               {%endif%}
               <a href="{{url_for('create_server')}}" target="_blank"> 
-                <i class="fa fa-plus "></i>&nbsp;Create Server
+                <i class="fa fa-plus "></i>&nbsp;Create Secure Federation
               </a>
               </div>
             </th>
@@ -78,7 +78,7 @@
     </div>
 
     <div class="intro-header">
-      <h2>Clients</h2>
+      <h2>Sites</h2>
     </div>
 
     <div class="row">
@@ -87,7 +87,7 @@
           {%if all_client_groups%}
             <th class="col-md-5 text-left">
             <div class="create-btn">
-              Clients Name
+              Site Name
             </div>
             </th>
           {%endif%}
