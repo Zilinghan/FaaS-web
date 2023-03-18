@@ -674,47 +674,52 @@ def upload_server_config(server_group_id, run='True'):
     with open(os.path.join(upload_folder, 'appfl_config.yaml'), 'w') as f:
         yaml.dump(appfl_config, f, default_flow_style=False)
     
+    # # Upload the configuration file to AWS S3
+    # appfl_config_key = f'{server_group_id}/{session.get("primary_identity")}/appfl_config.yaml'
+    # appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')
+    # if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
+    #     flash("Error: The configuration file is not uploaded successfully!")
+    #     return redirect(request.referrer)
+    
+    # Start the APPFL training
+
+    gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    server_group = gc.get_group(server_group_id, include=["memberships"])
+    group_members = [server_group["memberships"][i]["identity_id"] for i in range(len(server_group["memberships"]))]
+    group_members_str = ""
+    for member in group_members:
+        group_members_str += member
+        group_members_str += ','
+    group_members_str = group_members_str[:-1]
+    print(f'Group members: {group_members_str}')
+    print(f'Server ID: {session.get("primary_identity")}')
+    print(f'Group ID: {server_group_id}')
+    print(f'Upload folder: {app.config["UPLOAD_FOLDER"]}')
+    print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
+    print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
+    print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
+    # Those parameters should be passed to the container
+    task_arn = ecs_run_task([group_members_str, 
+                        session.get("primary_identity"), 
+                        server_group_id, 
+                        app.config["UPLOAD_FOLDER"],
+                        session['tokens']['funcx_service']['access_token'],
+                        session['tokens']['search.api.globus.org']['access_token'],
+                        session['tokens']['auth.globus.org']['access_token']
+    ])
     # Upload the configuration file to AWS S3
-    appfl_config_key = f'{server_group_id}/{session.get("primary_identity")}/appfl_config.yaml'
+    task_id = ecs_arn2id(task_arn)
+    appfl_config_key = f'{server_group_id}/{session.get("primary_identity")}/{task_id}/appfl_config.yaml'
     appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')
     if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
         flash("Error: The configuration file is not uploaded successfully!")
         return redirect(request.referrer)
-    
-    # Start the APPFL training
-    if run == 'True':
-        gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
-        server_group = gc.get_group(server_group_id, include=["memberships"])
-        group_members = [server_group["memberships"][i]["identity_id"] for i in range(len(server_group["memberships"]))]
-        group_members_str = ""
-        for member in group_members:
-            group_members_str += member
-            group_members_str += ','
-        group_members_str = group_members_str[:-1]
-        print(f'Group members: {group_members_str}')
-        print(f'Server ID: {session.get("primary_identity")}')
-        print(f'Group ID: {server_group_id}')
-        print(f'Upload folder: {app.config["UPLOAD_FOLDER"]}')
-        print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
-        print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
-        print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
-        # Those parameters should be passed to the container
-        task_arn = ecs_run_task([group_members_str, 
-                            session.get("primary_identity"), 
-                            server_group_id, 
-                            app.config["UPLOAD_FOLDER"],
-                            session['tokens']['funcx_service']['access_token'],
-                            session['tokens']['search.api.globus.org']['access_token'],
-                            session['tokens']['auth.globus.org']['access_token']
-        ])
-        if not dynamodb_append_task(server_group_id, task_arn):
-            flash("An error occurs when adding the task!")
-        flash("The federation is started!")
-        # appfl_process = multiprocessing.Process(target=run_appfl, args=(group_members, session.get('primary_identity'), server_group_id, app.config['UPLOAD_FOLDER']))
-        # appfl_process.start()
-        # flash("The federation is started!")
-    else:
-        flash("Configurations are saved successfully!")
+    if not dynamodb_append_task(server_group_id, task_arn):
+        flash("An error occurs when adding the task!")
+    flash("The federation is started!")
+    # appfl_process = multiprocessing.Process(target=run_appfl, args=(group_members, session.get('primary_identity'), server_group_id, app.config['UPLOAD_FOLDER']))
+    # appfl_process.start()
+    # flash("The federation is started!")
     return redirect(url_for('dashboard'))
 
 
