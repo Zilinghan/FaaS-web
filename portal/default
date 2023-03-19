@@ -1,0 +1,27 @@
+server {
+    server_name YOUR_DOMAIN_NAME;
+
+    location / {
+        proxy_pass https://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    listen [::]:443 ssl ipv6only=on; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/YOUR_DOMAIN_NAME/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/YOUR_DOMAIN_NAME/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+}
+
+server {
+    if ($host = YOUR_DOMAIN_NAME) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+    listen 80;
+    listen [::]:80;
+    server_name YOUR_DOMAIN_NAME;
+    return 404; # managed by Certbot
+} 

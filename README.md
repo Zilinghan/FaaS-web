@@ -1,107 +1,128 @@
-# Deploy the Web App to AWS EC2 Instance
-This is how to create an EC2 instance. Please allocate some amount of disk memory (>16GB) for running this application. [**Start AWS EC2 Instance**](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EC2_GetStarted.html)
+# Deploy the Web App to AWS EC2 Instance with DNS
 
+1. Create an EC2 instance [here](https://console.aws.amazon.com/ec2/) by referring to this [guide](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EC2_GetStarted.html).
 
-1. Connect to your EC2 instance using ssh
-    ```
-    ssh -i your-pem.pem ec2-user@your-ec2-instance-ipv4dns
-    ```
+    **NOTE:** Please select **Amazon Linux 2 AMI (HVM) - Kernel 5.10, SSD Volumn Type** as your OS images. Now I select **t2.micro** as the instance type, which is very cheap for the deployment stage. For the security group, we should allow HTTP, HTTPS inbound traffic from all sources (0.0.0.0/0), and ssh from your own IP address for development. Allocate **more than 20GB** of General Purpose SSD (gp2).
 
-2. Install `git` in your EC2 instance
+2. Allocate one Elastic IP address in the AWS EC2 console, and associate it with the created EC2 instance.
+
+3. Connect to your EC2 instance using ssh. `your-pem.pem` is a key you create in this [guide](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EC2_GetStarted.html).
     ```
-    sudo yum update -y
-    sudo yum install git -y
+    $ ssh -i your-pem.pem ec2-user@your-ec2-instance-ipv4dns
     ```
 
-3. Generate `ssh-key` for your EC2 instance, then copy the key to Github to create an ssh-key for accessing github inside the EC2 instance.
+4. Install `git` in your EC2 instance.
     ```
-    ssh-keygen -t rsa -b 4096 -C "your-email@illinois.edu"
-    cat ~/.ssh/id_rsa.pub
+    $ sudo yum update -y
+    $ sudo yum install git -y
     ```
 
-4. Allocate more memory from disk using swapfile. Run the following command to create a swap file with a size of 8 GB (you can adjust the size as needed):
+5. Generate `ssh-key` for your EC2 instance, then copy the key to Github to create an ssh-key for accessing github inside the EC2 instance.
     ```
-    sudo fallocate -l 8G /swapfile
+    $ ssh-keygen -t rsa -b 4096 -C "your-email@illinois.edu"
+    $ cat ~/.ssh/id_rsa.pub
+    ```
+
+6. Allocate more memory from SSD using swapfile. Run the following command to create a swap file with a size of 8 GB (you can adjust the size as needed).
+    ```
+    $ sudo fallocate -l 8G /swapfile
     ```
     Set the correct permissions for the swap file by running the following command:
     ```
-    sudo chmod 600 /swapfile
+    $ sudo chmod 600 /swapfile
     ```
     Set up the swap space on the file by running the following command:
     ```
-    sudo mkswap /swapfile
+    $ sudo mkswap /swapfile
     ```
     Enable the swap file by running the following command:
     ```
-    sudo swapon /swapfile
+    $ sudo swapon /swapfile
     ```
     To make the swap file permanent across reboots, add an entry for the swap file to the `/etc/fstab` file. Open the `/etc/fstab` file in a text editor and add the following line at the end of the file:
     ```
     /swapfile swap swap defaults 0 0
     ```
-5. Install `conda`
+
+7. Install `conda`.
     ```
-    mkdir conda
-    cd conda
-    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-    bash Miniconda3-latest-Linux-x86_64.sh
-    source ~/.bashrc
+    $ mkdir conda
+    $ cd conda
+    $ wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+    $ bash Miniconda3-latest-Linux-x86_64.sh
+    $ source ~/.bashrc
     ```
 
-6. Clone the repository for APPFL and checkout to the funcx branch
+8. Clone this repository.
     ```
-    cd ~
-    git clone git@github.com:Zilinghan/FL-as-a-Service.git FaaS
-    cd FaaS
-    git checkout funcx
-    ```
-
-7. Configure the environment
-    ```
-    conda create -n appfl python=3.8
-    conda activate appfl
-    pip install -r requirements.txt
-    pip install -e .
+    $ cd ~
+    $ git clone git@github.com:Zilinghan/FaaS-web.git
+    $ cd FaaS-web
     ```
 
-8. Clone the repository for the web application: Federated Learning as a Service.
+9. Creat virtual environment and install dependencies.
     ```
-    cd ~
-    git clone git@github.com:Zilinghan/FaaS-web.git
-    ```
-
-9. Set the web application configurations: Go to the AWS EC2 console to get your EC2 instance **Public** IPv4 address, and replace `YOUR_IP` below to that IP address. 
-
-    [**Important Note**: If the flask app is running on port 8000, please make sure that you add an inbound rule to allow traffic on that port. (Add rule: select "Custom TCP Rule", enter 8000 for "Port Range", and enter "0.0.0.0/0" for "Source")]
-    ```
-    cd FaaS-web
-    sed -i 's/localhost/0.0.0.0/' run_portal.py
-    sed -i '4,//s/localhost/YOUR_IP/' portal/portal.conf
-    echo "SESSION_COOKIE_DOMAIN = 'YOUR_IP'" >> portal/portal.conf
+    $ conda create -n flaas python=3.8
+    $ conda activate flaas
+    $ pip install -r requirements.txt
     ```
 
-10. Create your own App registration for use in the portal.
-* Visit the [Globus Developer Pages](https://developers.globus.org) to register an App.
-* If this is your first time visiting the Developer Pages you'll be asked to create a Project. A Project is a way to group Apps together.
-* When registering the App you'll be asked for some information, including the redirect URL and any scopes you will be requesting.
-    * Redirect URL: `https://YOUR_IP:8000/authcallback` (note: replace YOUR_IP with your EC2 instance public IPv4 address).
+10. Go to the [console of AWS IAM](https://console.aws.amazon.com/iam/), and create a user with the following policies: <span style="color:red">[TODO: We can narrow the access policy set later depending on the specific functionality usage.]</span>
+* AmazonDynamoDBFullAccess
+* AmazonECS_FullAccess	
+* AmazonS3FullAccess
+* CloudWatchFullAccess
 
-* After creating your App the client id and secret can be copied into this project in the following two places:
-    * `portal/portal.conf` in the `PORTAL_CLIENT_ID` and `PORTAL_CLIENT_SECRET` properties.
-    * `service/service.conf` where the `PORTAL_CLIENT_ID` is used to validate the access token that the Portal sends to the Service.
+11. Then go the the **Security credentials** and create an access key. Keep the access key and secret access key in a secure place.
 
-11. Start running the portal program, and then point your browser to `https://YOUR_IP:8000/`
+12. Run `aws configure` in the EC2 command line, and then enter the information for the created IAM user (access key, secret access key, region name)
+
+13. Generate SSL certicate and private key for running the Flask application on HTTPS <span style="color:red">[TODO: maybe generate one for everyone to use.]</span> To do this, first install `openssl` on your EC2.
     ```
-    ./run_portal.py
+    $ sudo yum install openssl
+    ```
+    Then generate a self-signed SSL certificate and private key in the `ssl` folder. The following command generate a self-signed SSL certificate valid for 365 days.
+    ```
+    $ cd ssl
+    $ openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365
+    $ cd ..
     ```
 
-12. To run the portal server on the background, we use Systemd boot manager for restart the server if the EC2 restarts or reboots for some reason. We create a `<projectname>.service` file in `/etc/systemd/system` folder and specify what would happen when the system reboots. 
+14. Associate the domain name purchased from AWS Route 53 (e.g. appflx.link) with the EC2 instance.
+* Go to [Route 53 console](https://console.aws.amazon.com/route53/) and create a public hosted zone using your domain name (`appflx.link`) if it does not exist.
+* Add two records `appflx.link` and `www.appflx.link` with **Type A** to the record table, and set the Value/Route traffic to the Elastic IP address of your EC2 instance.
 
-    First create the file:
+
+15. Create your own globus app registration.
+* Visit the [Globus Developer Page](https://developers.globus.org) and click 'Register your app with Globus'.
+* If this is your first time visiting the developer page, you'll be asked to add a project. A project is a way to group apps together.
+* After creating the project, you can 'add new app', where you'll be asked for some information, including the app name and redirect URL.
+    * Redirect URL: `https://YOUR_DOMAIN_NAME/authcallback` (e.g. https://appflx.link/authcallback)
+* Copy the 'Client ID' and create a 'Client Secret' for later use.
+
+16. Modify the configuration file using `sudo vim portal/portal.conf`, and make the following changes.
+* For `SEVER_NAME`, replace `localhost:8000` by your own domain name such as `appflx.link`.
+* For `DEBUG`, change it to `False`.
+* For `PORTAL_CLIENT_ID`, change it to the Client ID you obtain from the Globus Developer Page.
+* For `PORTAL_CLIENT_SECRET`, change it to the Client Secret you obtain from the Globus Developer Page.
+* Add `SESSION_COOKIE_DOMAIN = 'YOUR_DOMAIN_NAME'` at the end of the file, and replace `YOUR_DOMAIN_NAME` with your own domain name such as `appflx.link`.
+
+17. Install `gunicorn` for running the Flask app.
     ```
-    sudo vim /etc/systemd/system/web.service
+    $ pip install gunicorn
     ```
-    Then copy the following contents into this file. **Note**: you need to replace the value for the `WorkingDirectory` to the directory of your app (containing `run_portal.py`). For the first argument of `ExecStart`, it should be the **absolute** path of your python, which can be obtained by running `which python`.
+
+18. Run Gunicorn with your generated ssl certificate and key with 16 workers (few workers will be very slow).
+    ```
+    $ gunicorn run_portal:app --bind 0.0.0.0:8000 --certfile ssl/cert.pem --keyfile ssl/key.pem --workers 16
+    ```
+
+19. Now let's use systemd to manage Gunicorn. Systemd is a boot manager for Linux, which can be used to restart gunicorn if the EC2 restarts or reboots for some reason. 
+* First create a `<projectname>.service` file in `/etc/systemd/system` folder and specify what would happen when the system reboots. 
+    ```
+    $ sudo vim /etc/systemd/system/web.service
+    ```
+* Copy the following contents into the file. **Note**: you need to replace the value for the `WorkingDirectory` to the directory of your app (containing `run_portal.py`). For the first argument of `ExecStart`, it should be the **absolute** path of your `gunicorn`, which can be obtained by running `which gunicorn`.
     ```
     [Unit]
     Description=Web App Deployment
@@ -109,14 +130,101 @@ This is how to create an EC2 instance. Please allocate some amount of disk memor
     [Service]
     User=ec2-user
     WorkingDirectory=/home/ec2-user/FaaS-web
-    ExecStart=/home/ec2-user/miniconda3/bin/python run_portal.py
+    ExecStart=/home/ec2-user/miniconda3/envs/faas/bin/gunicorn run_portal:app --bind 0.0.0.0:8000 --certfile ssl/cert.pem --keyfile ssl/key.pem --workers 16
     Restart=always
     [Install]
     WantedBy=multi-user.target
-    ``` 
-    Then enable the service
     ```
-    sudo systemctl daemon-reload
-    sudo systemctl start web
-    sudo systemctl enable web
+* Finally enable the service
     ```
+    $ sudo systemctl daemon-reload
+    $ sudo systemctl start web
+    $ sudo systemctl enable web
+    ```
+
+20. Now, we run Nginx reverse proxy to accept and route HTTP and HTTPS requests to Gunicorn.
+* Install Nginx <span style="color:red">Note: this may not work, but it will prompt you how to install it if fails</span>
+    ```
+    $ sudo yum install nginx
+    ```
+* Start the Nginx service.
+    ```
+    $ sudo systemctl start nginx
+    $ sudo systemctl enable nginx
+    ```
+* Check if you have `/etc/nginx/sites-available` directory, if not, following the steps below. If you have this, skip this point and go to next point.
+    ```
+    $ sudo mkdir /etc/nginx/sites-available
+    $ sudo mkdir /etc/nginx/sites-enabled
+    $ include /etc/nginx/sites-enabled/*;
+    $ cd /etc/nginx/sites-available
+    $ sudo touch default
+    $ sudo ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+    ```
+
+21. Install an SSL certificate using Certbot. But let's first install Certbot.
+    ```
+    $ sudo yum install -y epel-release
+    $ sudo yum install -y certbot python2-certbot-nginx
+    ```
+    If you are using Amazon Linux 2, you might need to enable the 'extras' repository for the certbot package:
+    ```
+    $ sudo amazon-linux-extras enable epel
+    $ sudo yum clean metadata
+    $ sudo yum install -y certbot python2-certbot-nginx
+    ```
+
+22. Run Certbot to obtain and install the SSL certificate: Replace `appflx.link` and `www.appflx.link` with your domain name and desired subdomain. Certbot will automatically configure Nginx to use the SSL certificate and redirect HTTP traffic to HTTPS.
+    ```
+    $ sudo certbot --nginx -d appflx.link -d www.appflx.link
+    ```
+
+23. Now, it's time to change the content of `/etc/nginx/sites-available/default` to the following. Replace `YOUR_DOMAIN_NAME` to your own domain name such as `appflx.link`. (This file is available [here](portal/default))
+    ```
+    server {
+        server_name YOUR_DOMAIN_NAME;
+
+        location / {
+            proxy_pass https://127.0.0.1:8000;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        listen [::]:443 ssl ipv6only=on; # managed by Certbot
+        listen 443 ssl; # managed by Certbot
+        ssl_certificate /etc/letsencrypt/live/YOUR_DOMAIN_NAME/fullchain.pem; # managed by Certbot
+        ssl_certificate_key /etc/letsencrypt/live/YOUR_DOMAIN_NAME/privkey.pem; # managed by Certbot
+        include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+        ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+    }
+
+    server {
+        if ($host = YOUR_DOMAIN_NAME) {
+            return 301 https://$host$request_uri;
+        } # managed by Certbot
+        listen 80;
+        listen [::]:80;
+        server_name YOUR_DOMAIN_NAME;
+        return 404; # managed by Certbot
+    }
+    ```
+
+24. Restart Nginx after updating the default configuration.
+    ```
+    $ sudo systemctl restart nginx
+    ```
+
+25. By default, the certificate are valid for 90 days. To automatically renew the certificates before they expire, you can set up a cron job or a systemd timer.
+* Open the crontab for editing:
+    ```
+    $ sudo crontab -e
+    ```
+* Add the following line to attempt renewal twice a day and restart your Flask app upon success:
+    ```
+    0 */12 * * * certbot renew --quiet --post-hook "systemctl reload nginx"
+    ```
+
+26. Now, the Flask application should be accessible via your domain (e.g., https://appflx.link) with a valid SSL certificate. The configuration above also ensures that any HTTP requests are redirected to HTTPS.
+
+
