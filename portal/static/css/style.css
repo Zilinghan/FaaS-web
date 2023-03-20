@@ -321,6 +321,28 @@ select {
   }
 }
 
+.post-preview > div {
+  color: #404040;
+}
+
+.post-preview > div > .post-title {
+  font-size: 30px;
+  margin-top: 30px;
+  margin-bottom: 10px;
+}
+
+.post-preview > div > .post-subtitle {
+  margin: 0;
+  font-weight: 300;
+  margin-bottom: 10px;
+}
+
+@media only screen and (min-width: 768px) {
+  .post-preview > div > .post-title {
+    font-size: 36px;
+  }
+}
+
 .section-heading {
   font-size: 36px;
   margin-top: 60px;

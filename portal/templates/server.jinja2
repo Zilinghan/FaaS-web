@@ -1,6 +1,6 @@
 {%extends "base.jinja2"%}
 
-{%block title%}Server Config{%endblock%}
+{%block title%}Fed Config{%endblock%}
 
 
 {%block body%}
@@ -9,7 +9,7 @@
   <div class="container">
 
     <div class="page-header">
-      <h1>Server Configuration</h1>
+      <h1>Federation Configuration</h1>
     </div>
 
     <div class="row">
@@ -64,8 +64,8 @@
           {# Federation Name #}
           <div class="form-group-inline">
             <label>
-              Federation Name 
-              <img src="{{url_for('static', filename='img/info2.png')}}" tabindex="0" class="info-icon" role="button" data-toggle="popover" data-trigger="focus" title="Federation Name" data-content="Please give this federated learning session a name of your choice."/>
+              Experiment Name 
+              <img src="{{url_for('static', filename='img/info2.png')}}" tabindex="0" class="info-icon" role="button" data-toggle="popover" data-trigger="focus" title="Experiment Name" data-content="Please give this federated learning experiment a name of your choice."/>
             </label>
             <input type="text" id="federation-name" name="federation-name" class="form-control" placeholder="federation name" required="required" tabindex="1">
           </div>
@@ -296,7 +296,7 @@
             }
             else {
               document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/unset-hex.png')}}';
-              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data_content', 'The client endpoint is either unset or invalid!');
+              document.getElementById(`status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data-content', 'The client endpoint is either unset or invalid!');
             }
           }
         }
