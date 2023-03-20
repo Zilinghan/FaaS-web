@@ -16,8 +16,9 @@ from globus_sdk import (RefreshTokenAuthorizer, TransferAPIError, TransferClient
 from portal.utils import (get_portal_tokens, get_safe_redirect, group_tagging, get_servers_clients, \
                           load_portal_client, load_group_client, \
                           s3_download, s3_upload, s3_get_download_link, \
-                          ecs_run_task, ecs_task_status, ecs_arn2id, \
-                          dynamodb_get_tasks, dynamodb_append_task, get_funcx_client)
+                          ecs_run_task, ecs_task_status, ecs_arn2id, ecs_parse_taskinfo, \
+                          dynamodb_get_tasks, dynamodb_append_task, get_funcx_client, \
+                          clouldwatch_get_log)
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -75,7 +76,7 @@ def logout():
     ga_logout_url.append(app.config['GLOBUS_AUTH_LOGOUT_URI'])
     ga_logout_url.append('?client={}'.format(app.config['PORTAL_CLIENT_ID']))
     ga_logout_url.append('&redirect_uri={}'.format(redirect_uri))
-    ga_logout_url.append('&redirect_name=Globus Sample Data Portal')
+    ga_logout_url.append('&redirect_name=Privacy Preservering Federated Learning as a Service')
 
     # Redirect the user to the Globus Auth logout page
     return redirect(''.join(ga_logout_url))
@@ -288,10 +289,9 @@ def browse_info(server_group_id=None, client_group_id=None):
     """
     gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
     if server_group_id is not None:
-        task_arns = dynamodb_get_tasks(server_group_id)
+        task_info = dynamodb_get_tasks(server_group_id)
+        task_arns, task_names = ecs_parse_taskinfo(task_info)
         task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
-        print(task_arns)
-        print(task_ids)
         server_group = gc.get_group(server_group_id, include=["memberships"])
         client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id)
         return render_template('server_info.jinja2', \
@@ -300,16 +300,28 @@ def browse_info(server_group_id=None, client_group_id=None):
                                 client_endpoints=client_endpoints, \
                                 client_emails=client_emails, \
                                 client_orgs=client_orgs, \
-                                task_ids=task_ids,
-                                task_arns=task_arns)
+                                task_ids=task_ids, \
+                                task_arns=task_arns, \
+                                task_names=task_names)
     if client_group_id is not None:
         return render_template('client_info.jinja2', client_group_id=client_group_id)
 
-@app.route('/download/<file_type>/<client_group_id>', methods=['GET'])
-def download_file(file_type="", client_group_id=None):
-    if file_type == "dataloader" and client_group_id is not None:
-        return redirect(s3_get_download_link(S3_BUCKET_NAME, f'{client_group_id}/{session["primary_identity"]}/dataloader.py'))
-    pass
+@app.route('/download/<file_type>/<group_id>', methods=['GET'])
+@app.route('/download/<file_type>/<group_id>/<task_id>', methods=['GET'])
+def download_file(file_type="", group_id=None, task_id=None):
+    if file_type == "dataloader" and group_id is not None:
+        return redirect(s3_get_download_link(S3_BUCKET_NAME, f'{group_id}/{session["primary_identity"]}/dataloader.py'))
+    elif file_type == 'configuration' and group_id is not None and task_id is not None:
+        return redirect(s3_get_download_link(S3_BUCKET_NAME, f'{group_id}/{session["primary_identity"]}/{task_id}/appfl_config.yaml'))
+    elif file_type == 'log' and task_id is not None:
+        return clouldwatch_get_log(task_id)
+    else:
+        print(f'file_type: {file_type}')
+        print(f'group_id: {group_id}')
+        print(f'task_id: {task_id}')
+        flash("Sorry, this function is still not implemented!")
+        return redirect(request.referrer)
+
 
 @app.route('/get-client-info', methods=['GET'])
 def get_client_info():
@@ -480,6 +492,8 @@ def upload_client_config(client_group_id):
     client_config = {'client': {}}
     for param in request.form:
         client_config['client'][param] = request.form[param]
+    client_config['client']['output_dir'] = 'output' # the default name for output is output
+
     with open(os.path.join(upload_folder, 'client.yaml'), 'w') as f:
         yaml.dump(client_config, f, default_flow_style=False)
 
@@ -646,7 +660,7 @@ def load_server_config(form, server_group_id):
         }
     else:
         appfl_config['model_file'] = f'{server_group_id}/{session.get("primary_identity")}/model.py'
-    return error_count, appfl_config
+    return error_count, appfl_config, form['federation-name']
 
 
 @app.route('/upload_server_config/<server_group_id>/<run>', methods=['POST'])
@@ -667,7 +681,7 @@ def upload_server_config(server_group_id, run='True'):
 
     # Save the appfl and model configuration
     form = dict(request.form)
-    error_count, appfl_config = load_server_config(form, server_group_id)
+    error_count, appfl_config, exp_name = load_server_config(form, server_group_id)
     if error_count > 0:
         return redirect(request.referrer)
     with open(os.path.join(upload_folder, 'appfl_config.yaml'), 'w') as f:
@@ -713,7 +727,7 @@ def upload_server_config(server_group_id, run='True'):
     if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
         flash("Error: The configuration file is not uploaded successfully!")
         return redirect(request.referrer)
-    if not dynamodb_append_task(server_group_id, task_arn):
+    if not dynamodb_append_task(server_group_id, task_arn, exp_name):
         flash("An error occurs when adding the task!")
     flash("The federation is started!")
     # appfl_process = multiprocessing.Process(target=run_appfl, args=(group_members, session.get('primary_identity'), server_group_id, app.config['UPLOAD_FOLDER']))
@@ -737,10 +751,8 @@ def task_status():
         task_arn = request.args[key]
         task_id = ecs_arn2id(task_arn)
         task_status[task_id] = {}
-        status, starttime, endtime = ecs_task_status(task_arn)
+        status = ecs_task_status(task_arn)
         task_status[task_id]['status'] = status
-        task_status[task_id]['start-time'] = starttime
-        task_status[task_id]['end-time'] = endtime
     return task_status
 
 

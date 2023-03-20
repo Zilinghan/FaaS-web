@@ -1,13 +1,13 @@
 {%extends "base.jinja2"%}
 
-{%block title%}Client Info{%endblock%}
+{%block title%}Site Info{%endblock%}
 
 {%block body%}
   {%include "header.jinja2"%}
   <div class="container">
 
     <div class="page-header">
-      <h1>Client Information</h1>
+      <h1>Site Information</h1>
     </div>
 
     <div class="row">
@@ -30,7 +30,7 @@
           <div class="form-group-inline">
             <label>
                 Dataloader 
-                <a href="{{url_for('download_file', file_type='dataloader', client_group_id=client_group_id)}}">
+                <a href="{{url_for('download_file', file_type='dataloader', group_id=client_group_id)}}">
                     <img src="{{url_for('static', filename='img/download.png')}}" style="width:18%; cursor:pointer;display:none;" id="client-info-dataloader-download"/>
                 </a>
             </label>
@@ -61,7 +61,7 @@
             >
           </div>
 
-          <div class="form-group-inline">
+          {# <div class="form-group-inline">
             <label>Output Directory</label>
             <input
               type="text"
@@ -73,7 +73,7 @@
               tabindex="5"
               disabled="True"
             >
-          </div>
+          </div> #}
         </form>
         <div class="form-group">
           <button class="btn btn-secondary" onclick="disableBackButton()" id="client-info-page-back-btn">Back</button>
@@ -99,7 +99,6 @@
             document.getElementById('client-info-endpoint-id').value = resp['endpoint_id'];
             document.getElementById('client-info-dataloader').value = 'dataloader.py';
             document.getElementById('client-info-device-type').value = resp['device'];
-            document.getElementById('client-info-output-directory').value = resp['output_dir'];
             document.getElementById('client-info-dataloader-download').style.display = 'inline';
         },
         error: function(xhr, status, err) {

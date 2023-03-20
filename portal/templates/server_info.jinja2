@@ -40,36 +40,34 @@
         <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
 
         <div class="task-info-container">
+          <div class="task-info-item task-info-header">Experiment Name</div>
           <div class="task-info-item task-info-header">Experiment ID</div>
           <div class="task-info-item task-info-header">Status</div>
-          <div class="task-info-item task-info-header">Start Time</div>
-          <div class="task-info-item task-info-header">End Time</div>
           <div class="task-info-item task-info-header">Config</div>
           <div class="task-info-item task-info-header">Log</div>
           <div class="task-info-item task-info-header">Report</div>
           <div class="task-info-item task-info-header">Tensorboard</div>
-          {% for task_id in task_ids %}
-            <div class="task-info-item task-info-content">{{task_id}}</div>
-            <div class="task-info-item task-info-content" id="task_{{task_id}}_status"></div>
-            <div class="task-info-item task-info-content" id="task_{{task_id}}_starttime"></div>
-            <div class="task-info-item task-info-content" id="task_{{task_id}}_endtime"></div>
-            <div class="task-info-item task-info-content" id="task_{{task_id}}_configfile">
-              <a href="{{url_for('download_file', file_type='configuration', client_group_id=client_group_id)}}">
+          {% for i in range(task_ids|length)%}
+            <div class="task-info-item task-info-content">{{task_names[i]}}</div>
+            <div class="task-info-item task-info-content">{{task_ids[i]}}</div>
+            <div class="task-info-item task-info-content" id="task_{{task_ids[i]}}_status"></div>
+            <div class="task-info-item task-info-content" id="task_{{task_ids[i]}}_configfile">
+              <a href="{{url_for('download_file', file_type='configuration', group_id=server_group_id, task_id=task_ids[i])}}">
                 <img src="{{url_for('static', filename='img/config.png')}}" style="width:25px; cursor:pointer;" id="???"/>
               </a>
             </div>
             <div class="task-info-item task-info-content" id="task_{{task_id}}_logfile">
-              <a href="{{url_for('download_file', file_type='log', client_group_id=client_group_id)}}">
+              <a href="{{url_for('download_file', file_type='log', group_id=server_group_id, task_id=task_ids[i])}}">
                 <img src="{{url_for('static', filename='img/log.png')}}" style="width:25px; cursor:pointer;" id="???"/>
               </a>
             </div>
             <div class="task-info-item task-info-content" id="task_{{task_id}}_reportfile">
-              <a href="{{url_for('download_file', file_type='report', client_group_id=client_group_id)}}">
-                <img src="{{url_for('static', filename='img/log.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+              <a href="{{url_for('download_file', file_type='report', group_id=server_group_id)}}">
+                <img src="{{url_for('static', filename='img/report.png')}}" style="width:25px; cursor:pointer;" id="???"/>
               </a>
             </div>
             <div class="task-info-item task-info-content" id="task_{{task_id}}_tbfile">
-              <a href="{{url_for('download_file', file_type='tensorboard', client_group_id=client_group_id)}}">
+              <a href="{{url_for('download_file', file_type='tensorboard', group_id=server_group_id)}}">
                 <img src="{{url_for('static', filename='img/tb.png')}}" style="width:25px; cursor:pointer;" id="???"/>
               </a>
             </div>
@@ -113,8 +111,6 @@
           console.log(Object.keys(resp));
           for (var i = 0; i < task_ids.length; i++) {
             document.getElementById(`task_${task_ids[i]}_status`).innerHTML = resp[task_ids[i]]['status'];
-            document.getElementById(`task_${task_ids[i]}_starttime`).innerHTML = resp[task_ids[i]]['start-time'];
-            document.getElementById(`task_${task_ids[i]}_endtime`).innerHTML = resp[task_ids[i]]['end-time'];
           }
         }
       })
@@ -157,7 +153,7 @@
             }
             else {
               document.getElementById(`info_status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/unset-hex.png')}}';
-              document.getElementById(`info_status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data_content', 'The client endpoint is either unset or invalid!');
+              document.getElementById(`info_status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data-content', 'The client endpoint is either unset or invalid!');
             }
           }
         }

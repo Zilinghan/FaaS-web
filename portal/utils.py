@@ -2,9 +2,10 @@ import os
 import boto3
 import globus_sdk
 from portal import app
-from flask import request
 from threading import Lock
 from funcx import FuncXClient
+from datetime import datetime, timedelta
+from flask import request, render_template
 from botocore.exceptions import ClientError
 from funcx.sdk.web_client import FuncxWebClient
 from globus_sdk.scopes import AuthScopes, SearchScopes
@@ -19,10 +20,13 @@ FL_TAG = '__FLAAS'
 # For local test purposes, where all the access key are configured using awscli
 s3 = boto3.client('s3')
 ecs = boto3.client('ecs')
+log = boto3.client('logs')
 dynamodb = boto3.resource('dynamodb')
 dynamodb_table = dynamodb.Table('appfl-tasks')
 # Hard code for ECS information
 ECS_CLUSTER = 'flaas-anl-test-cluster' 
+ECS_TASK_DEF = 'pytest2-task-def-3'
+ECS_IMAGE_NAME = 'pytest2'
 
 class FuncXLoginManager:
     """Implements the funcx.sdk.login_manager.protocol.LoginManagerProtocol class."""
@@ -50,6 +54,28 @@ class FuncXLoginManager:
 
     def logout(self):
         print("logout cannot be invoked from here!")
+
+def get_funcx_client(tokens):
+    """Obtain a funcx client for the authenticated user using the returned login token."""
+    # Obtain tokens from the input tokens
+    openid_token = tokens['auth.globus.org']['access_token']
+    search_token = tokens['search.api.globus.org']['access_token']
+    funcx_token = tokens['funcx_service']['access_token']
+
+    # Create authorizers from existing tokens
+    funcx_auth = globus_sdk.AccessTokenAuthorizer(funcx_token)
+    search_auth = globus_sdk.AccessTokenAuthorizer(search_token)
+    openid_auth = globus_sdk.AccessTokenAuthorizer(openid_token)
+
+    # Create a new login manager and use it to create a client
+    funcx_login_manager = FuncXLoginManager(
+        authorizers={FuncXClient.FUNCX_SCOPE: funcx_auth,
+                    SearchScopes.all: search_auth,
+                    AuthScopes.openid: openid_auth}
+    )
+
+    fxc = FuncXClient(login_manager=funcx_login_manager)
+    return fxc
 
 def s3_get_download_link(bucket_name, key_name):
     """Obtain a link from AWS for downloading a file in S3 bucket."""
@@ -82,28 +108,6 @@ def s3_upload(bucket_name, key_name, file_name, delete_local=True):
     except Exception as e:
         print(e)
         return False
-    
-def get_funcx_client(tokens):
-    """Obtain a funcx client for the authenticated user using the returned login token."""
-    # Obtain tokens from the input tokens
-    openid_token = tokens['auth.globus.org']['access_token']
-    search_token = tokens['search.api.globus.org']['access_token']
-    funcx_token = tokens['funcx_service']['access_token']
-
-    # Create authorizers from existing tokens
-    funcx_auth = globus_sdk.AccessTokenAuthorizer(funcx_token)
-    search_auth = globus_sdk.AccessTokenAuthorizer(search_token)
-    openid_auth = globus_sdk.AccessTokenAuthorizer(openid_token)
-
-    # Create a new login manager and use it to create a client
-    funcx_login_manager = FuncXLoginManager(
-        authorizers={FuncXClient.FUNCX_SCOPE: funcx_auth,
-                    SearchScopes.all: search_auth,
-                    AuthScopes.openid: openid_auth}
-    )
-
-    fxc = FuncXClient(login_manager=funcx_login_manager)
-    return fxc
 
 def ecs_run_task(cmd):
     response = ecs.run_task(
@@ -134,33 +138,28 @@ def ecs_task_status(task_arn):
         task = response['tasks'][0]
         status = task['containers'][0]['lastStatus']
     except:
-        status = 'FINISHED'
-        starttime = ""
-        endtime = ""
-        return status, starttime, endtime
-    if status == 'PENDING':
-        starttime = ""
-        endtime = ""
-    elif status == 'RUNNING':
-        try:
-            starttime = task['createdAt'].strftime("%Y-%m-%d %H:%M:%S")
-        except:
-            starttime = ""
-        endtime = ""
-    else:
-        try:
-            starttime = task['createdAt'].strftime("%Y-%m-%d %H:%M:%S")
-        except:
-            starttime = ""
-        try:
-            endtime = task['executionStoppedAt'].strftime("%Y-%m-%d %H:%M:%S")
-        except:
-            endtime = ""
-    return status, starttime, endtime
+        status = 'STOPPED'
+    return status
 
 def ecs_arn2id(task_arn):
     """Convert the ARN of ECS task into ID"""
     return task_arn.split('/')[-1]
+
+def ecs_parse_taskinfo(task_info):
+    """Parse a list of task information into task ARN and task/experiment name"""
+    task_arns, task_names = [], []
+    for info in task_info:
+        info_pc = info.split('<EXP_NAME>')
+        task_arn = info_pc[0]
+        task_name = ""
+        for i in range(1, len(info_pc)):
+            if i != 1:
+                task_name += '<EXP_NAME>'
+            task_name += info_pc[i]
+        task_arns.append(task_arn)
+        task_names.append(task_name)
+    print(task_names)
+    return task_arns, task_names
 
 def dynamodb_get_tasks(group_id):
     """Return all the task ids for the certain group"""
@@ -175,22 +174,22 @@ def dynamodb_get_tasks(group_id):
     else:
         if not 'Item' in response:
             print('Tasks not found for group %s' %(group_id))
-            return None
+            return []
         return response['Item']['task-ids']
 
-def dynamodb_append_task(group_id, task_id):
+def dynamodb_append_task(group_id, task_id, exp_name):
     """Add one task to a certain group"""
     try:
         dynamodb_table.update_item(
             Key={'group-id': group_id},
             UpdateExpression='set #t = list_append(#t, :val)',
             ExpressionAttributeNames={'#t': 'task-ids'},
-            ExpressionAttributeValues={":val": [task_id]}
+            ExpressionAttributeValues={":val": [f'{task_id}<EXP_NAME>{exp_name}']}
         )
         return True
     except ClientError as err:
         try: 
-            dynamodb_table.put_item(Item={'group-id': group_id, 'task-ids': [task_id]})
+            dynamodb_table.put_item(Item={'group-id': group_id, 'task-ids': [f'{task_id}<EXP_NAME>{exp_name}']})
             return True
         except ClientError as err:
             print(
@@ -198,6 +197,23 @@ def dynamodb_append_task(group_id, task_id):
                 group_id, dynamodb_table.name, \
                 err.response['Error']['Code'], err.response['Error']['Message']))
             return False
+
+def clouldwatch_get_log(task_id):
+    log_group_name  = f'/ecs/{ECS_TASK_DEF}'
+    log_stream_name = f'ecs/{ECS_IMAGE_NAME}/{task_id}'
+    end_time = datetime.utcnow()
+    start_time = end_time - timedelta(days=100) # TODO: now we only supports log 100 days ago
+    resp = log.get_log_events(
+        logGroupName=log_group_name,
+        logStreamName=log_stream_name,
+        startTime=int(start_time.timestamp() * 1000),
+        endTime=int(end_time.timestamp() * 1000)
+    )
+    try:
+        log_contents = [event['message'] for event in resp['events']]
+    except:
+        log_contents = []
+    return render_template('log.jinja2', log_contents=log_contents)
 
 def load_portal_client():
     """Create an AuthClient for the portal"""
