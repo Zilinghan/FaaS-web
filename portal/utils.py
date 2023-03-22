@@ -83,7 +83,7 @@ def s3_get_download_link(bucket_name, key_name):
 
 def s3_download(bucket_name, key_name, file_folder, file_name):
     """
-    Download file with `key_name` from S3 bucket `bucket_name`, and store it locally to `file_name`.
+    Download file with `key_name` from S3 bucket `bucket_name`, and store it locally to `file_folder/file_name`.
     Return true if the file exists and gets downloaded successfully, return false otherwise.
     """
     try:
@@ -92,9 +92,33 @@ def s3_download(bucket_name, key_name, file_folder, file_name):
         s3.download_file(Bucket=bucket_name, Key=key_name, Filename=os.path.join(file_folder, file_name))
         return True
     except Exception as e:
+        print(f'S3 Download Error: {e}')
+        return False
+
+def s3_download_folder(bucket_name, key_folder, file_folder):
+    """
+    Download all the files in the S3 folder `key_folder` from S3_bucker `bucket_name` and store it locally to `file_folder`.
+    Return true if the `key_folder` exists, return false otherwise.
+    """
+    try:
+        if not os.path.exists(file_folder):
+            os.makedirs(file_folder)
+        objects = s3.list_objects_v2(Bucket=bucket_name, Prefix=key_folder)
+        if not 'Contents' in objects:
+            return False
+        if len(objects['Contents']) == 0:
+            return False
+        for obj in objects['Contents']:
+            # Check if the object is a file (i.e., not a subfolder)
+            if not obj['Key'].endswith('/'):
+                # Download the file to the file folder
+                file_name = os.path.basename(obj['Key'])
+                s3.download_file(Bucket=bucket_name, Key=obj['Key'], Filename=os.path.join(file_folder, file_name))
+        return True
+    except Exception as e:
         print(e)
         return False
-    
+
 def s3_upload(bucket_name, key_name, file_name, delete_local=True):
     """
     Upload the local file with name `file_name` to the S3 bucket `bucket_name` and save it as `key_name`.
@@ -106,7 +130,7 @@ def s3_upload(bucket_name, key_name, file_name, delete_local=True):
             os.remove(file_name)
         return True
     except Exception as e:
-        print(e)
+        print(f'S3 Upload Error: {e}')
         return False
 
 def ecs_run_task(cmd):

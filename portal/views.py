@@ -8,14 +8,14 @@ import importlib.util
 from enum import Enum
 from datetime import datetime
 from funcx import FuncXClient
-# from tensorboard import program
+from tensorboard import program
 from portal import app, database, datasets
 from portal.decorators import authenticated
 from flask import (abort, flash, redirect, render_template, request, session, url_for)
 from globus_sdk import (RefreshTokenAuthorizer, TransferAPIError, TransferClient, TransferData)
 from portal.utils import (get_portal_tokens, get_safe_redirect, group_tagging, get_servers_clients, \
                           load_portal_client, load_group_client, \
-                          s3_download, s3_upload, s3_get_download_link, \
+                          s3_download, s3_upload, s3_get_download_link, s3_download_folder, \
                           ecs_run_task, ecs_task_status, ecs_arn2id, ecs_parse_taskinfo, \
                           dynamodb_get_tasks, dynamodb_append_task, get_funcx_client, \
                           clouldwatch_get_log)
@@ -64,6 +64,8 @@ def logout():
             for ty in ('access_token', 'refresh_token')
             # only where the relevant token is actually present
             if token_info[ty] is not None):
+        print(f'token: {token}')
+        print(f'token_type: {token_type}')
         client.oauth2_revoke_token(
             token, body_params={'token_type_hint': token_type})
 
@@ -711,6 +713,7 @@ def upload_server_config(server_group_id, run='True'):
     print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
     print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
     print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
+    # return redirect(url_for('dashboard'))
     # Those parameters should be passed to the container
     task_arn = ecs_run_task([group_members_str, 
                         session.get("primary_identity"), 
@@ -743,6 +746,7 @@ class EndpointStatus(Enum):
     ACTIVE_CPU = 1          # Endpoint does not have GPU
     ACTIVE_GPU = 2          # Endpoint has GPU available
 
+
 @app.route('/task-status', methods=['GET'])
 @authenticated
 def task_status():
@@ -754,7 +758,6 @@ def task_status():
         status = ecs_task_status(task_arn)
         task_status[task_id]['status'] = status
     return task_status
-
 
 
 @app.route('/status-check', methods=['GET'])
@@ -801,32 +804,45 @@ def appfl_log_page(server_group_id):
         return redirect(request.referrer)
 
 
-@app.route('/tensorboard-log/<server_group_id>', methods=['GET'])
+@app.route('/tensorboard-log/<server_group_id>/<task_id>', methods=['GET'])
 @authenticated
-def tensorboard_log_page(server_group_id):
+def tensorboard_log_page(server_group_id, task_id):
     """
     Return the tensorboard log page for the appfl run of group `server_group_id`
+    TODO: Include a 404 page if there is no log file available
+    TODO: currently the tensorboard is launched using http, later we should launch it using https
+    TODO: This implementation still launches a new TensorBoard server every time 
+        the /info route is visited, so you may want to modify the code to launch 
+        the server only once and keep it running in the background, or use a 
+        different method of embedding the TensorBoard page (such as using 
+        JavaScript to load the page dynamically).
     """
-    pass
-    #TODO: Include a 404 page if there is no log file available
-    #TODO: currently the tensorboard is launched using http, later we should launch it using https
-    #TODO: This implementation still launches a new TensorBoard server every time 
-    #      the /info route is visited, so you may want to modify the code to launch 
-    #      the server only once and keep it running in the background, or use a 
-    #      different method of embedding the TensorBoard page (such as using 
-    #      JavaScript to load the page dynamically).
-    # logdir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'), 'logs', 'tensorboard')
-    # if os.path.isdir(logdir):
-    #     tb = program.TensorBoard()  
-    #     tb.configure(argv=[None, '--logdir', logdir, '--host', '0.0.0.0'])
-    #     url = tb.launch()
-    #     port = url.split(':')[-1]
-    #     url = f'http://{app.config["SESSION_COOKIE_DOMAIN"]}:{port}'
-    #     return redirect(url)
-    #     return render_template('tensorboard_log.jinja2', url=url)
-    # else:
-    #     flash("Error: There is not log file for this server!")
-    #     return redirect(request.referrer)
+    # Download the tensorboard output from S3
+    key_folder  = f'{server_group_id}/{session["primary_identity"]}/{task_id}/tensorboard'
+    log_dir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'), task_id, 'logs', 'tensorboard')
+    if not s3_download_folder(S3_BUCKET_NAME, key_folder, log_dir):
+        flash("The tensorboard page is not available for this experiment yet!")
+        return redirect(request.referrer)
+    
+    # Launch the tensorboard on an available port
+    if os.path.isdir(log_dir):
+        # tb_process = subprocess.Popen(['tensorboard', f'--logdir={log_dir}', f'--host=0.0.0.0', f'--port={port}'])
+        # url = f'http://localhost:{port}'
+        # tb_pid = tb_process.pid
+        tb = program.TensorBoard()  
+        tb.configure(argv=[None, '--logdir', log_dir, '--host', '0.0.0.0', '--port', f'0'])
+        url = tb.launch()
+        port = url.split(':')[-1]
+        if app.config["SESSION_COOKIE_DOMAIN"]:
+            # Use reverse proxy for the tensorboard server
+            url = f'https://{app.config["SESSION_COOKIE_DOMAIN"]}/tb/{port}'
+        else:
+            # For local test
+            url = f'http://localhost:{port}'
+        return render_template('tensorboard_log.jinja2', url=f'{url}')
+    else:
+        flash("Error: There is not log file for this server!")
+        return redirect(request.referrer)
 
 
 @app.errorhandler(413)
