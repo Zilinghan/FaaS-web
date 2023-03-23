@@ -189,7 +189,7 @@ def authcallback():
         return redirect(url_for('dashboard'))
 
 
-def get_endpoint_information(members, group_id):
+def get_endpoint_information(members, group_id, server_id):
     """
     Check if the APPFL clients in the group have uploaded their endpoint information
     Inputs:
@@ -211,21 +211,21 @@ def get_endpoint_information(members, group_id):
         try:
             user_names.append(member['membership_fields']['name'])
         except:
-            if user_id == session.get('primary_identity'):
+            if user_id == server_id:
                 user_names.append(f"{session.get('name')} (You)")
             else:
                 user_names.append(member['username'])
         try:
             user_emails.append(member['membership_fields']['email'])
         except:
-            if user_id == session.get('primary_identity'):
+            if user_id == server_id:
                 user_emails.append(session.get('email'))
             else:
                 user_emails.append("NONE") # TODO: how to deal with a user without any valid email?
         try:
             user_orgs.append(member['membership_fields']['organization'])
         except:
-            if user_id == session.get('primary_identity'):
+            if user_id == server_id:
                 user_orgs.append(f"{session.get('institution')}")
             else:
                 user_orgs.append("")
@@ -265,9 +265,12 @@ def browse_config(server_group_id=None, client_group_id=None):
         Note: two inputs are mutually exclusive
     """
     gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    
     if server_group_id is not None:
+        server_info = gc.get_group(server_group_id, include=['my_memberships'])['my_memberships'][0]
+        server_id   = server_info['identity_id']
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id)
+        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id, server_id)
         return render_template('server.jinja2', \
                                server_group_id=server_group_id, \
                                client_names=client_names, \
@@ -291,11 +294,13 @@ def browse_info(server_group_id=None, client_group_id=None):
     """
     gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
     if server_group_id is not None:
+        server_info = gc.get_group(server_group_id, include=['my_memberships'])['my_memberships'][0]
+        server_id   = server_info['identity_id']
         task_info = dynamodb_get_tasks(server_group_id)
         task_arns, task_names = ecs_parse_taskinfo(task_info)
         task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id)
+        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id, server_id)
         return render_template('server_info.jinja2', \
                                 server_group_id=server_group_id, \
                                 client_names=client_names, \
@@ -311,10 +316,13 @@ def browse_info(server_group_id=None, client_group_id=None):
 @app.route('/download/<file_type>/<group_id>', methods=['GET'])
 @app.route('/download/<file_type>/<group_id>/<task_id>', methods=['GET'])
 def download_file(file_type="", group_id=None, task_id=None):
+    gc      = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    my_info = gc.get_group(group_id, include=['my_memberships'])['my_memberships'][0]
+    user_id = my_info['identity_id']
     if file_type == "dataloader" and group_id is not None:
-        return redirect(s3_get_download_link(S3_BUCKET_NAME, f'{group_id}/{session["primary_identity"]}/dataloader.py'))
+        return redirect(s3_get_download_link(S3_BUCKET_NAME, f'{group_id}/{user_id}/dataloader.py'))
     elif file_type == 'configuration' and group_id is not None and task_id is not None:
-        return redirect(s3_get_download_link(S3_BUCKET_NAME, f'{group_id}/{session["primary_identity"]}/{task_id}/appfl_config.yaml'))
+        return redirect(s3_get_download_link(S3_BUCKET_NAME, f'{group_id}/{user_id}/{task_id}/appfl_config.yaml'))
     elif file_type == 'log' and task_id is not None:
         return clouldwatch_get_log(task_id)
     else:
@@ -328,9 +336,12 @@ def download_file(file_type="", group_id=None, task_id=None):
 @app.route('/get-client-info', methods=['GET'])
 def get_client_info():
     client_info = {}
-    client_group_id = request.args['client_group_id']
-    client_info_key    = f'{client_group_id}/{session["primary_identity"]}/client.yaml'
-    client_info_folder = os.path.join(app.config['UPLOAD_FOLDER'], client_group_id, session.get('primary_identity'))
+    client_group_id    = request.args['client_group_id']
+    gc                 = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    client_info        = gc.get_group(client_group_id, include=['my_memberships'])['my_memberships'][0]
+    client_id          = client_info['identity_id']
+    client_info_key    = f'{client_group_id}/{client_id}/client.yaml'
+    client_info_folder = os.path.join(app.config['UPLOAD_FOLDER'], client_group_id, client_id)
     client_info_name   = 'client.yaml'
     if s3_download(S3_BUCKET_NAME, client_info_key, client_info_folder, client_info_name):
         with open(os.path.join(client_info_folder, client_info_name)) as f:
@@ -485,7 +496,10 @@ def upload_client_config(client_group_id):
     Input:
         - client_group_id: Globus group id for the client
     """
-    upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], client_group_id, session.get('primary_identity'))
+    gc          = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    client_info = gc.get_group(client_group_id, include=['my_memberships'])['my_memberships'][0]
+    client_id   = client_info['identity_id']
+    upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], client_group_id, client_id)
     if not os.path.exists(upload_folder):
         os.makedirs(upload_folder)
 
@@ -506,9 +520,9 @@ def upload_client_config(client_group_id):
     # Upload the files to AWS S3
     error_count = 0
     client_config_fp  = os.path.join(upload_folder, 'client.yaml')
-    client_config_key = f'{client_group_id}/{session.get("primary_identity")}/client.yaml'
+    client_config_key = f'{client_group_id}/{client_id}/client.yaml'
     loader_file_fp    = os.path.join(upload_folder, 'dataloader.py')
-    loader_file_key   = f'{client_group_id}/{session.get("primary_identity")}/dataloader.py'
+    loader_file_key   = f'{client_group_id}/{client_id}/dataloader.py'
     if not s3_upload(S3_BUCKET_NAME, client_config_key, client_config_fp, delete_local=True): 
         flash("Error: Client configure is NOT uploaded successfully!")
         print("Error: Client configure is NOT uploaded successfully!")
@@ -532,6 +546,10 @@ def load_server_config(form, server_group_id):
     """
     # TODO: Make sure that the sanity checks are correct (value ranges), such as the privacy budget
     # Input data sanity check
+    gc          = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    server_info = gc.get_group(server_group_id, include=['my_memberships'])['my_memberships'][0]
+    server_id   = server_info['identity_id']
+
     error_count = 0
     form['server-training-epoch'] = int(form['server-training-epoch'])
     if form['server-training-epoch'] <= 0:
@@ -602,13 +620,13 @@ def load_server_config(form, server_group_id):
             flash(f"Error {error_count}: Input height must be positive!")
     # If user uploads a custom model
     else:
-        upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'))
+        upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id)
         if not os.path.exists(upload_folder):
             os.makedirs(upload_folder)
         model_file = request.files['custom-model-file']
         model_file_fp = os.path.join(upload_folder, 'model.py')
         model_file.save(model_file_fp)
-        model_key = f'{server_group_id}/{session.get("primary_identity")}/model.py'
+        model_key = f'{server_group_id}/{server_id}/model.py'
         
         # Upload the model file to AWS S3
         if not s3_upload(S3_BUCKET_NAME, model_key, model_file_fp, delete_local=True):
@@ -620,7 +638,7 @@ def load_server_config(form, server_group_id):
         return error_count, None
 
     # TODO: How to deal with this log file if we move things to cloud (data to S3, and probably the running in a container)
-    server_log_dir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'), 'logs')
+    server_log_dir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id, 'logs')
     # server_log_dir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'))
 
     appfl_config = {
@@ -661,7 +679,7 @@ def load_server_config(form, server_group_id):
             'height': form['model-input-height']
         }
     else:
-        appfl_config['model_file'] = f'{server_group_id}/{session.get("primary_identity")}/model.py'
+        appfl_config['model_file'] = f'{server_group_id}/{server_id}/model.py'
     return error_count, appfl_config, form['federation-name']
 
 
@@ -677,7 +695,11 @@ def upload_server_config(server_group_id, run='True'):
     # TODO:
     # (1) Test if I can pass the parameter run correctly
     # (2) Load default values based on previously saved parameters, and the default values will be passed as request.form after submission
-    upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'))
+    gc          = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    server_info = gc.get_group(server_group_id, include=['my_memberships'])['my_memberships'][0]
+    server_id   = server_info['identity_id']
+
+    upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id)
     if not os.path.exists(upload_folder):
         os.makedirs(upload_folder)
 
@@ -707,7 +729,7 @@ def upload_server_config(server_group_id, run='True'):
         group_members_str += ','
     group_members_str = group_members_str[:-1]
     print(f'Group members: {group_members_str}')
-    print(f'Server ID: {session.get("primary_identity")}')
+    print(f'Server ID: {server_id}')
     print(f'Group ID: {server_group_id}')
     print(f'Upload folder: {app.config["UPLOAD_FOLDER"]}')
     print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
@@ -716,7 +738,7 @@ def upload_server_config(server_group_id, run='True'):
     # return redirect(url_for('dashboard'))
     # Those parameters should be passed to the container
     task_arn = ecs_run_task([group_members_str, 
-                        session.get("primary_identity"), 
+                        server_id, 
                         server_group_id, 
                         app.config["UPLOAD_FOLDER"],
                         session['tokens']['funcx_service']['access_token'],
@@ -725,7 +747,7 @@ def upload_server_config(server_group_id, run='True'):
     ])
     # Upload the configuration file to AWS S3
     task_id = ecs_arn2id(task_arn)
-    appfl_config_key = f'{server_group_id}/{session.get("primary_identity")}/{task_id}/appfl_config.yaml'
+    appfl_config_key = f'{server_group_id}/{server_id}/{task_id}/appfl_config.yaml'
     appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')
     if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
         flash("Error: The configuration file is not uploaded successfully!")
@@ -794,7 +816,10 @@ def status_check():
 @authenticated
 def appfl_log_page(server_group_id):
     """Return the log page for the appfl run of group `server_group_id`"""
-    log_file = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'), 'logs', 'log_server.log')
+    gc          = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    server_info = gc.get_group(server_group_id, include=['my_memberships'])['my_memberships'][0]
+    server_id   = server_info['identity_id']
+    log_file = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id, 'logs', 'log_server.log')
     if os.path.isfile(log_file):
         with open(log_file) as f:
             log_contents = [line for line in f]
@@ -818,8 +843,11 @@ def tensorboard_log_page(server_group_id, task_id):
         JavaScript to load the page dynamically).
     """
     # Download the tensorboard output from S3
-    key_folder  = f'{server_group_id}/{session["primary_identity"]}/{task_id}/tensorboard'
-    log_dir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, session.get('primary_identity'), task_id, 'logs', 'tensorboard')
+    gc          = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    server_info = gc.get_group(server_group_id, include=['my_memberships'])['my_memberships'][0]
+    server_id   = server_info['identity_id']
+    key_folder  = f'{server_group_id}/{server_id}/{task_id}/tensorboard'
+    log_dir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id, task_id, 'logs', 'tensorboard')
     if not s3_download_folder(S3_BUCKET_NAME, key_folder, log_dir):
         flash("The tensorboard page is not available for this experiment yet!")
         return redirect(request.referrer)
