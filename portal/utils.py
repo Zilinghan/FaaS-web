@@ -156,13 +156,18 @@ def ecs_run_task(cmd):
     return response['tasks'][0]['taskArn']
 
 def ecs_task_status(task_arn):
-    """Return the status, """
+    """
+    Return the status of an ECS Task.
+    TODO: maybe we can check if the process fails or not.
+    """
     response = ecs.describe_tasks(cluster=ECS_CLUSTER, tasks=[task_arn])
     try:
         task = response['tasks'][0]
         status = task['containers'][0]['lastStatus']
+        if status == 'STOPPED':
+            status = 'DONE'
     except:
-        status = 'STOPPED'
+        status = 'DONE'
     return status
 
 def ecs_arn2id(task_arn):
