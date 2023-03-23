@@ -64,8 +64,8 @@ def logout():
             for ty in ('access_token', 'refresh_token')
             # only where the relevant token is actually present
             if token_info[ty] is not None):
-        print(f'token: {token}')
-        print(f'token_type: {token_type}')
+        # print(f'token: {token}')
+        # print(f'token_type: {token_type}')
         client.oauth2_revoke_token(
             token, body_params={'token_type_hint': token_type})
 
@@ -149,7 +149,7 @@ def authcallback():
 
     # If there's no "code" query string parameter, we're in this route
     # starting a Globus Auth login flow.
-    print(request.args)
+    # print(request.args)
     if 'code' not in request.args:
         additional_authorize_params = (
             {'signup': 1} if request.args.get('signup') else {})
@@ -172,7 +172,7 @@ def authcallback():
             primary_username=id_token.get('preferred_username'),
             primary_identity=id_token.get('sub'),
         )
-        print(session['tokens'])
+        # print(session['tokens'])
 
         profile = database.load_profile(session['primary_identity'])
 
@@ -249,7 +249,7 @@ def get_endpoint_information(members, group_id, server_id):
         #     print(os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id, 'client.yaml'))
         #     print(member)
         #     user_endpoints.append('0')
-    print(user_endpoints)
+    # print(user_endpoints)
     return user_names, user_emails, user_orgs, user_endpoints
 
 
@@ -326,9 +326,9 @@ def download_file(file_type="", group_id=None, task_id=None):
     elif file_type == 'log' and task_id is not None:
         return clouldwatch_get_log(task_id)
     else:
-        print(f'file_type: {file_type}')
-        print(f'group_id: {group_id}')
-        print(f'task_id: {task_id}')
+        # print(f'file_type: {file_type}')
+        # print(f'group_id: {group_id}')
+        # print(f'task_id: {task_id}')
         flash("Sorry, this function is still not implemented!")
         return redirect(request.referrer)
 
@@ -727,14 +727,14 @@ def upload_server_config(server_group_id, run='True'):
     for member in group_members:
         group_members_str += member
         group_members_str += ','
-    group_members_str = group_members_str[:-1]
-    print(f'Group members: {group_members_str}')
-    print(f'Server ID: {server_id}')
-    print(f'Group ID: {server_group_id}')
-    print(f'Upload folder: {app.config["UPLOAD_FOLDER"]}')
-    print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
-    print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
-    print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
+    # group_members_str = group_members_str[:-1]
+    # print(f'Group members: {group_members_str}')
+    # print(f'Server ID: {server_id}')
+    # print(f'Group ID: {server_group_id}')
+    # print(f'Upload folder: {app.config["UPLOAD_FOLDER"]}')
+    # print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
+    # print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
+    # print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
     # return redirect(url_for('dashboard'))
     # Those parameters should be passed to the container
     task_arn = ecs_run_task([group_members_str, 
