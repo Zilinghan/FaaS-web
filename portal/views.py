@@ -727,7 +727,7 @@ def upload_server_config(server_group_id, run='True'):
     for member in group_members:
         group_members_str += member
         group_members_str += ','
-    # group_members_str = group_members_str[:-1]
+    group_members_str = group_members_str[:-1]
     # print(f'Group members: {group_members_str}')
     # print(f'Server ID: {server_id}')
     # print(f'Group ID: {server_group_id}')
