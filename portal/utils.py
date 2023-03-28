@@ -5,7 +5,7 @@ from portal import app
 from threading import Lock
 from funcx import FuncXClient
 from datetime import datetime, timedelta
-from flask import request, render_template
+from flask import request, render_template, redirect, flash
 from botocore.exceptions import ClientError
 from funcx.sdk.web_client import FuncxWebClient
 from globus_sdk.scopes import AuthScopes, SearchScopes
@@ -27,6 +27,7 @@ dynamodb_table = dynamodb.Table('appfl-tasks')
 ECS_CLUSTER = 'flaas-anl-test-cluster' 
 ECS_TASK_DEF = 'pytest2-task-def-3'
 ECS_IMAGE_NAME = 'pytest2'
+S3_BUCKET_NAME = 'flaas-anl-test' 
 
 class FuncXLoginManager:
     """Implements the funcx.sdk.login_manager.protocol.LoginManagerProtocol class."""
@@ -227,11 +228,12 @@ def dynamodb_append_task(group_id, task_id, exp_name):
                 err.response['Error']['Code'], err.response['Error']['Message']))
             return False
 
-def clouldwatch_get_log(task_id):
+def aws_get_log(task_id, user_id, group_id, referrer):
+    """Return the log file for certain task either from AWS clouldwatch or S3 stored log file"""
     log_group_name  = f'/ecs/{ECS_TASK_DEF}'
     log_stream_name = f'ecs/{ECS_IMAGE_NAME}/{task_id}'
     end_time = datetime.utcnow()
-    start_time = end_time - timedelta(days=100) # TODO: now we only supports log 100 days ago
+    start_time = end_time - timedelta(days=100.0) # TODO: now we only supports log 100 days ago
     resp = log.get_log_events(
         logGroupName=log_group_name,
         logStreamName=log_stream_name,
@@ -241,7 +243,23 @@ def clouldwatch_get_log(task_id):
     try:
         log_contents = [event['message'] for event in resp['events']]
     except:
-        log_contents = []
+        print("Nothing from cloud watch....")
+        # If nothing in the log contents, obtain the log from S3 bucker
+        log_key    = f'{group_id}/{user_id}/{task_id}/log_server.log'
+        log_folder = os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id)
+        log_name   = 'log_server.log'
+        if s3_download(S3_BUCKET_NAME, log_key, log_folder, log_name):
+            log_file = os.path.join(log_folder, log_name)
+            if os.path.isfile(log_file):
+                with open(log_file) as f:
+                    log_contents = [line for line in f]
+        else:
+            log_contents = []
+            print("Nothing from S3")
+    if len(log_contents) == 0:
+        flash("There is currently no log for this federation!")
+        return redirect(referrer)
+
     return render_template('log.jinja2', log_contents=log_contents)
 
 def load_portal_client():

@@ -18,7 +18,7 @@ from portal.utils import (get_portal_tokens, get_safe_redirect, group_tagging, g
                           s3_download, s3_upload, s3_get_download_link, s3_download_folder, \
                           ecs_run_task, ecs_task_status, ecs_arn2id, ecs_parse_taskinfo, \
                           dynamodb_get_tasks, dynamodb_append_task, get_funcx_client, \
-                          clouldwatch_get_log)
+                          aws_get_log)
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -55,19 +55,15 @@ def logout():
     """
     client = load_portal_client()
 
-    # Revoke the tokens with Globus Auth
-    for token, token_type in (
-            (token_info[ty], ty)
-            # get all of the token info dicts
-            for token_info in session['tokens'].values()
-            # cross product with the set of token types
-            for ty in ('access_token', 'refresh_token')
-            # only where the relevant token is actually present
-            if token_info[ty] is not None):
-        # print(f'token: {token}')
-        # print(f'token_type: {token_type}')
-        client.oauth2_revoke_token(
-            token, body_params={'token_type_hint': token_type})
+    unrevoked_tokens = ['auth.globus.org', 'funcx_service', 'search.api.globus.org']
+    
+    
+    # Revode the tokens with Globus Auth
+    for key, token_info in session['tokens'].items():
+        if key not in unrevoked_tokens:
+            for token_type in ('access_token', 'refresh_token'):
+                token = token_info[token_type]
+                client.oauth2_revoke_token(token, body_params={'token_type_hint': token_type})
 
     # Destroy the session state
     session.clear()
@@ -323,8 +319,8 @@ def download_file(file_type="", group_id=None, task_id=None):
         return redirect(s3_get_download_link(S3_BUCKET_NAME, f'{group_id}/{user_id}/dataloader.py'))
     elif file_type == 'configuration' and group_id is not None and task_id is not None:
         return redirect(s3_get_download_link(S3_BUCKET_NAME, f'{group_id}/{user_id}/{task_id}/appfl_config.yaml'))
-    elif file_type == 'log' and task_id is not None:
-        return clouldwatch_get_log(task_id)
+    elif file_type == 'log' and task_id is not None and group_id is not None:
+        return aws_get_log(task_id, user_id, group_id, request.referrer)
     else:
         # print(f'file_type: {file_type}')
         # print(f'group_id: {group_id}')
@@ -728,6 +724,14 @@ def upload_server_config(server_group_id, run='True'):
         group_members_str += member
         group_members_str += ','
     group_members_str = group_members_str[:-1]
+
+    # # Test Code
+    # task_id = 'randomid'
+    # appfl_config_key = f'{server_group_id}/{server_id}/{task_id}/appfl_config.yaml'
+    # appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')
+    # if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
+    #     flash("Error: The configuration file is not uploaded successfully!")
+    #     return redirect(request.referrer)
     # print(f'Group members: {group_members_str}')
     # print(f'Server ID: {server_id}')
     # print(f'Group ID: {server_group_id}')
@@ -736,6 +740,7 @@ def upload_server_config(server_group_id, run='True'):
     # print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
     # print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
     # return redirect(url_for('dashboard'))
+
     # Those parameters should be passed to the container
     task_arn = ecs_run_task([group_members_str, 
                         server_id, 
