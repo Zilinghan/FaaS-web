@@ -55,3 +55,7 @@
     funcx-endpoint list
     ```
 
+7. Use a simple test to see if your endpoint is running. Run [`funcx-test.py`](funcx-test.py) by first **replacing the endpoint-id with yours**, then see if you can see the results returned from the endpoint.
+    ```
+    python funcx-test.py
+    ```
