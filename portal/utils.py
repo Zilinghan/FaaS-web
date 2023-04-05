@@ -56,6 +56,106 @@ class FuncXLoginManager:
     def logout(self):
         print("logout cannot be invoked from here!")
 
+def training_data_preprocessing(data):
+    """
+    Preprocess the yaml training metrics to desired format.
+    TODO: see what can be changed later...
+    """
+    def remove_decimal(dt_string):
+        return dt_string.split('.')[0]
+    data_processed = []
+    for item in data:
+        processed_item = item.copy()
+        processed_item['start_at'] = remove_decimal(item['start_at'])
+        processed_item['end_at'] = remove_decimal(item['end_at'])
+        start_time = datetime.strptime(item['start_at'], '%Y-%m-%d %H:%M:%S.%f')
+        end_time = datetime.strptime(item['end_at'], '%Y-%m-%d %H:%M:%S.%f')
+        processed_item['duration'] = f'{(end_time-start_time).total_seconds():.2f}'
+        processed_item['timing'] = {}
+        for event, event_value in item['timing'].items():
+            if isinstance(event_value, dict):
+                for event_child, event_child_value in event_value.items():
+                    processed_item['timing'][f'{event}-{event_child}'] = event_child_value
+            else:
+                processed_item['timing'][event] = event_value
+        data_processed.append(processed_item)
+    return data_processed
+
+def val_test_data_preprocessing(data):
+    """
+    Preprocess the json validation and test data to desired format
+    TODO: see what can be changed later...
+    """
+    client_validation = []
+    server_validation = []
+    client_test = []
+    server_test = []
+    for endpoint_info in data['val']['clients']:
+        for endpoint_name in endpoint_info:
+            client_validation.append({
+                'endpoint': endpoint_name,
+                'step': endpoint_info[endpoint_name]['step'],
+                'loss': f"{endpoint_info[endpoint_name]['val_loss']:.4f}",
+                'accuracy': f"{endpoint_info[endpoint_name]['val_acc']:.3f}"
+            })
+    for server_info in data['val']['server']:
+        if server_info['acc'] == 0.0 and server_info['loss'] == 0.0:
+            server_validation= []
+            break
+        else:
+            server_validation.append({
+                'step': server_info['step'],
+                'loss': f"{server_info['loss']:.4f}",
+                'accuracy': f"{server_info['acc']:.3f}"
+            })
+    # TODO: how to deal with the test data: currently I don't have sample data 
+    return client_validation, server_validation, client_test, server_test
+
+def hp_data_preprocessing(data):
+    """
+    Preprocess the hyperparameter data to desired format
+    TODO: see what can be changed later...
+    """
+    hp_data = {}
+    # TODO: Change this if more algorithms are integrated
+    fed_alg_dict = {
+        'ServerFedAvg': 'Federated Average',
+        'ServerFedAvgMomentum': 'Federated Average Momentum',
+        'ServerFedAdagrad': 'Federated Adagrad',
+        'ServerFedAdam': 'Federated Adam',
+        'ServerFedYogi': 'Federated Yogi'
+    }
+    fed_alg = data['algorithm']['servername']
+    hp_data['fed_alg'] = fed_alg_dict[fed_alg]
+    hp_data['exp_name'] = data['dataset']['name']
+    hp_data['server_epoch'] = data['training']['num_epochs']
+    hp_data['client_epoch'] = data['algorithm']['args']['num_local_epochs']
+    hp_data['privacy_budget'] = data['algorithm']['args']['epsilon']
+    hp_data['clip_value'] = data['algorithm']['args']['clip_value']
+    hp_data['clip_norm'] = data['algorithm']['args']['clip_norm']
+    if fed_alg == 'ServerFedAvgMomentum':
+        hp_data['server_mom'] = data['algorithm']['args']['server_momentum_param_1']
+    elif fed_alg == 'ServerFedAdagrad':
+        hp_data['server_mom']   = data['algorithm']['args']['server_momentum_param_1']
+        hp_data['server_lr']    = data['algorithm']['args']['server_learning_rate']
+        hp_data['server_adapt'] = data['algorithm']['args']['server_adapt_param']
+    elif fed_alg == 'ServerFedAdam' or fed_alg == 'ServerFedYogi':
+        hp_data['server_mom']     = data['algorithm']['args']['server_momentum_param_1']
+        hp_data['server_lr']      = data['algorithm']['args']['server_learning_rate']
+        hp_data['server_adapt']   = data['algorithm']['args']['server_adapt_param']
+        hp_data['server_var_mom'] = data['algorithm']['args']['server_momentum_param_2']
+    hp_data['optimizer'] = data['algorithm']['args']['optim']
+    hp_data['lr'] = data['algorithm']['args']['optim_args']['lr']
+    hp_data['lr_decay'] = data['algorithm']['args']['server_lr_decay_exp_gamma']
+    hp_data['client_weights'] = data['algorithm']['args']['client_weights']
+    if 'model_type' in data:
+        hp_data['model_type'] = data['model_type']
+        hp_data['model_params'] = data['model']
+    else:
+        # TODO: Generate a download link for the custom model file
+        pass
+    return hp_data
+
 def get_funcx_client(tokens):
     """Obtain a funcx client for the authenticated user using the returned login token."""
     # Obtain tokens from the input tokens

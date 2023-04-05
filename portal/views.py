@@ -1,4 +1,5 @@
 import os
+import json
 import yaml
 import time
 import funcx
@@ -17,8 +18,8 @@ from portal.utils import (get_portal_tokens, get_safe_redirect, group_tagging, g
                           load_portal_client, load_group_client, \
                           s3_download, s3_upload, s3_get_download_link, s3_download_folder, \
                           ecs_run_task, ecs_task_status, ecs_arn2id, ecs_parse_taskinfo, \
-                          dynamodb_get_tasks, dynamodb_append_task, get_funcx_client, \
-                          aws_get_log)
+                          dynamodb_get_tasks, dynamodb_append_task, get_funcx_client, aws_get_log, \
+                          training_data_preprocessing, val_test_data_preprocessing, hp_data_preprocessing)
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -31,6 +32,36 @@ STATUS_CHECK_TIMES = 5
 def home():
     """Home page"""
     return render_template('home.jinja2')
+
+
+# @app.route('/report', methods=['GET'])
+# def report():
+#     """Only for test purpose"""
+#     # Load the training metrics
+#     with open("./portal/log_funcx.yaml") as f:
+#         training_data = yaml.safe_load(f)
+#     training_data = training_data_preprocessing(training_data)
+
+#     # Load the validation and test metrics
+#     with open("./portal/log_eval.json") as f:
+#         val_test_data = json.load(f)
+#     client_validation, server_validation, client_test, server_test = val_test_data_preprocessing(val_test_data)
+    
+#     # Load the training hyperparameters
+#     with open("./portal/appfl_config.yaml") as f:
+#         hp_data = yaml.safe_load(f)
+#     hp_data = hp_data_preprocessing(hp_data)
+#     return render_template('report.jinja2', 
+#                            tab_title='Federation Report',
+#                            report_title='Federation Report',
+#                            training_data=training_data, 
+#                            client_validation=client_validation, 
+#                            server_validation=server_validation,
+#                            client_test=client_test,
+#                            server_test=server_test,
+#                            hp_data=hp_data
+#                         )
+#     return render_template('report_template.jinja2', data=data)
 
 
 @app.route('/signup', methods=['GET'])
@@ -318,13 +349,63 @@ def download_file(file_type="", group_id=None, task_id=None):
     if file_type == "dataloader" and group_id is not None:
         return redirect(s3_get_download_link(S3_BUCKET_NAME, f'{group_id}/{user_id}/dataloader.py'))
     elif file_type == 'configuration' and group_id is not None and task_id is not None:
-        return redirect(s3_get_download_link(S3_BUCKET_NAME, f'{group_id}/{user_id}/{task_id}/appfl_config.yaml'))
+        config_key    = f'{group_id}/{user_id}/{task_id}/appfl_config.yaml'
+        config_folder = os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id, task_id)
+        config_name   = 'appfl_config.yaml'
+        if s3_download(S3_BUCKET_NAME, config_key, config_folder, config_name):
+            with open(os.path.join(config_folder, config_name)) as f:
+                hp_data = yaml.safe_load(f)
+            hp_data = hp_data_preprocessing(hp_data)
+            os.remove(os.path.join(config_folder, config_name))
+            return render_template('report.jinja2',
+                                   tab_title='Federation Configuration',
+                                   report_title='Federation Configuration',
+                                   hp_data=hp_data)
+        else:   
+            flash("There is no configuration for this federation!")
+            return redirect(request.referrer)
     elif file_type == 'log' and task_id is not None and group_id is not None:
         return aws_get_log(task_id, user_id, group_id, request.referrer)
+    elif file_type == 'report' and task_id is not None and group_id is not None:
+        config_key      = f'{group_id}/{user_id}/{task_id}/appfl_config.yaml'
+        train_key       = f'{group_id}/{user_id}/{task_id}/log_funcx.yaml'
+        eval_key        = f'{group_id}/{user_id}/{task_id}/log_eval.json'
+        download_folder = os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id, task_id)
+        if s3_download(S3_BUCKET_NAME, config_key, download_folder, 'appfl_config.yaml') and \
+           s3_download(S3_BUCKET_NAME, train_key, download_folder, 'log_funcx.yaml') and \
+           s3_download(S3_BUCKET_NAME, eval_key, download_folder, 'log_eval.json'):
+            # Load the training metrics
+            with open(os.path.join(download_folder, 'log_funcx.yaml')) as f:
+                training_data = yaml.safe_load(f)
+            training_data = training_data_preprocessing(training_data)
+
+            # Load the validation and test results
+            with open(os.path.join(download_folder, 'log_eval.json')) as f:
+                val_test_data = json.load(f)
+            client_validation, server_validation, client_test, server_test = val_test_data_preprocessing(val_test_data)
+
+            # Load the training hyperparameters
+            with open(os.path.join(download_folder, 'appfl_config.yaml')) as f:
+                hp_data = yaml.safe_load(f)
+            hp_data = hp_data_preprocessing(hp_data)
+
+            # Clean the downloaded files
+            os.remove(os.path.join(download_folder, 'log_funcx.yaml'))
+            os.remove(os.path.join(download_folder, 'log_eval.json'))
+            os.remove(os.path.join(download_folder, 'appfl_config.yaml'))
+            return render_template('report.jinja2', 
+                           tab_title='Federation Report',
+                           report_title='Federation Report',
+                           training_data=training_data, 
+                           client_validation=client_validation, 
+                           server_validation=server_validation,
+                           client_test=client_test,
+                           server_test=server_test,
+                           hp_data=hp_data)
+        else:
+            flash("There is no report for this federation!")
+            return redirect(request.referrer)
     else:
-        # print(f'file_type: {file_type}')
-        # print(f'group_id: {group_id}')
-        # print(f'task_id: {task_id}')
         flash("Sorry, this function is still not implemented!")
         return redirect(request.referrer)
 
