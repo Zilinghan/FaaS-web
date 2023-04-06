@@ -288,7 +288,6 @@ def ecs_parse_taskinfo(task_info):
             task_name += info_pc[i]
         task_arns.append(task_arn)
         task_names.append(task_name)
-    print(task_names)
     return task_arns, task_names
 
 def dynamodb_get_tasks(group_id):
@@ -327,6 +326,22 @@ def dynamodb_append_task(group_id, task_id, exp_name):
                 group_id, dynamodb_table.name, \
                 err.response['Error']['Code'], err.response['Error']['Message']))
             return False
+        
+def _s3_get_log(group_id, user_id, task_id):
+    # If nothing in the log contents, obtain the log from S3 bucker
+    log_key    = f'{group_id}/{user_id}/{task_id}/log_server.log'
+    log_folder = os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id)
+    log_name   = 'log_server.log'
+    if s3_download(S3_BUCKET_NAME, log_key, log_folder, log_name):
+        log_file = os.path.join(log_folder, log_name)
+        print(log_file)
+        if os.path.isfile(log_file):
+            with open(log_file) as f:
+                log_contents = [line for line in f]
+    else:
+        log_contents = []
+        print("Nothing from S3....")
+    return log_contents
 
 def aws_get_log(task_id, user_id, group_id, referrer):
     """Return the log file for certain task either from AWS clouldwatch or S3 stored log file"""
@@ -340,26 +355,19 @@ def aws_get_log(task_id, user_id, group_id, referrer):
         startTime=int(start_time.timestamp() * 1000),
         endTime=int(end_time.timestamp() * 1000)
     )
+    s3_downloaded = False
     try:
         log_contents = [event['message'] for event in resp['events']]
     except:
         print("Nothing from cloud watch....")
-        # If nothing in the log contents, obtain the log from S3 bucker
-        log_key    = f'{group_id}/{user_id}/{task_id}/log_server.log'
-        log_folder = os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id)
-        log_name   = 'log_server.log'
-        if s3_download(S3_BUCKET_NAME, log_key, log_folder, log_name):
-            log_file = os.path.join(log_folder, log_name)
-            if os.path.isfile(log_file):
-                with open(log_file) as f:
-                    log_contents = [line for line in f]
-        else:
-            log_contents = []
-            print("Nothing from S3")
+        log_contents = _s3_get_log(group_id, user_id, task_id)
+        s3_downloaded = True
+    if not s3_downloaded and len(log_contents) == 0:
+        log_contents = _s3_get_log(group_id, user_id, task_id)
     if len(log_contents) == 0:
         flash("There is currently no log for this federation!")
         return redirect(referrer)
-
+    
     return render_template('log.jinja2', log_contents=log_contents)
 
 def load_portal_client():

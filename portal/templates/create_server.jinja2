@@ -6,12 +6,10 @@
   {%include "header.jinja2"%}
 
   <div class="container">
-
-    <div class="page-header">
-      <h1>Create Server</h1>
-    </div>
-
     <div class="row">
+      <div class="page-header col-md-6 col-md-offset-3">
+        <h1>Create Server</h1>
+      </div>
       <div class="col-md-6 col-md-offset-3">
         <form role="form" onsubmit="disableSaveButton()" action="{{url_for('create_server')}}" method="POST">
           <div class="panel panel-info small-font">

@@ -2,20 +2,117 @@
 
 {%block title%}Federation Info{%endblock%}
 
-
 {%block body%}
   {%include "header.jinja2"%}
 
-
   <div class="container">
-
     <div class="page-header">
       <h1>Federation Information</h1>
     </div>
     
-    <div class="row">
+    <h2 class="anchored" data-anchor-id="endpoint-info-title">Endpoint Information</h2>
+    <section id="endpoint-information" class="level4">
+      <div class="cell" data-execution_count="30">
+        <div class="cell-output cell-output-display" data-execution_count="825">
+          <div class="container first-container col-sm-12 pull-left">
+            <table class="table table-condensed table-striped">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Organization</th>
+                  <th>Email</th>
+                  <th>Endpoint Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {%for i in range(client_names|length)%}
+                <tr>
+                  <td>{{client_names[i]}}</td>
+                  <td>{{client_orgs[i]}}</td>
+                  <td>
+                    <div class="endpoint-info-content">
+                      <a href="mailto:{{client_emails[i]}}"><img src="{{url_for('static', filename='img/email.png')}}" role="button" style="cursor: pointer;"/>{{client_emails[i]}}</a>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="endpoint-info-content">
+                    {% if client_endpoints[i] == '0'%}
+                      <img id="info_status_{{client_names[i]}}_{{client_endpoints[i]}}" src="{{url_for('static', filename='img/unset-hex.png')}}" tabindex="0" role="button" data-toggle="popover" data-trigger="focus" title="Endpoint Status" data-content="The client endpoint is either unset or invalid!" data-placement="left"/>
+                    {% else %}
+                      <img id="info_status_{{client_names[i]}}_{{client_endpoints[i]}}" src="{{url_for('static', filename='img/loading.gif')}}" tabindex="0" role="button" data-toggle="popover" data-trigger="focus" title="Endpoint Status" data-content="Checking the status of the client endpoint......" data-placement="left"/>
+                    {% endif %}
+                    </div>
+                  </td>
+                </tr>
+                {%endfor%}
+              </tbody>
+            </table>
+          </div>
+        </div> 
+      </div>
+    </section>
+
+    <h2 class="anchored" data-anchor-id="exp-info-title">Experiment Information</h2>
+    <section id="experiment-information" class="level4">
+      <div class="cell" data-execution_count="30">
+        <div class="cell-output cell-output-display" data-execution_count="825">
+          <div class="container first-container col-sm-12 pull-left">
+            <table class="table table-condensed table-striped">
+              <thead>
+                <tr>
+                  <th>Experiment Name</th>
+                  <th>Experiment ID</th>
+                  <th>Status</th>
+                  <th>Config</th>
+                  <th>Log</th>
+                  <th>Report</th>
+                  <th>Tensorboard</th>
+                </tr>
+              </thead>
+              <tbody>
+                {%for i in range(task_ids|length)%}
+                <tr>
+                  <td>{{task_names[i]}}</td>
+                  <td>{{task_ids[i]}}</td>
+                  <td id="task_{{task_ids[i]}}_status"></td>
+                  <td id="task_{{task_ids[i]}}_configfile">
+                    <a href="{{url_for('download_file', file_type='configuration', group_id=server_group_id, task_id=task_ids[i])}}">
+                      <img src="{{url_for('static', filename='img/config.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+                    </a>
+                  </td>
+                  <td id="task_{{task_id}}_logfile">
+                    <a href="{{url_for('download_file', file_type='log', group_id=server_group_id, task_id=task_ids[i])}}">
+                      <img src="{{url_for('static', filename='img/log.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+                    </a>
+                  </td>
+                  <td id="task_{{task_id}}_reportfile">
+                    <a href="{{url_for('download_file', file_type='report', group_id=server_group_id, task_id=task_ids[i])}}">
+                      <img src="{{url_for('static', filename='img/report.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+                    </a>
+                  </td>
+                  <td id="task_{{task_id}}_tbfile">
+                    <a href="{{url_for('tensorboard_log_page', server_group_id=server_group_id, task_id=task_ids[i])}}">
+                      <img src="{{url_for('static', filename='img/tb.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+                    </a>
+                  </td>
+                </tr>
+                {%endfor%}
+              </tbody>
+            </table>
+          </div>
+        </div> 
+      </div>
+    </section>
+
+    <hr class="col-sm-12" style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
+
+    <div class="form-group col-md-12">
+      <button class="btn btn-secondary" onclick="disableBackButton()" id="server-info-page-back-btn">Back</button>
+    </div>
+
+
+    {# <div class="row">
       <div class="col-md-12">
-        
         <div class="endpoint-info-container">
           <div class="endpoint-info-item endpoint-info-header">Client</div>
           <div class="endpoint-info-item endpoint-info-header">Organization</div>
@@ -36,9 +133,6 @@
             </div>
           {%endfor%}
         </div>
-
-        <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
-
         <div class="task-info-container">
           <div class="task-info-item task-info-header">Experiment Name</div>
           <div class="task-info-item task-info-header">Experiment ID</div>
@@ -73,16 +167,11 @@
             </div>
           {% endfor %}
         </div>
-        
-        <br>
-
         <div class="form-group">
           <button class="btn btn-secondary" onclick="disableBackButton()" id="server-info-page-back-btn">Back</button>
         </div>
-        {# TODO: We can support more federated algorithm later#}
-
       </div>
-    </div>
+    </div> #}
 
   </div> <!-- container -->
 

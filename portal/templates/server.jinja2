@@ -7,14 +7,11 @@
   {%include "header.jinja2"%}
 
   <div class="container">
-
-    <div class="page-header">
-      <h1>Federation Configuration</h1>
-    </div>
-
     <div class="row">
+      <div class="page-header col-md-7 col-md-offset-3">
+        <h1>Federation Configuration</h1>
+      </div>
       <div class="col-md-7 col-md-offset-3">
-        
         <div class="endpoint-status-table">
           <div class="endpoint-status-row">
             <div class="endpoint-status-title first-column"><p>Client Endpoints</p></div>
@@ -41,9 +38,6 @@
           {% endfor %}
           <!-- more rows here -->
         </div>
-
-        
-
 
         <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
         {# TODO: Let the run of funcx-appfl choose which alg to run#}

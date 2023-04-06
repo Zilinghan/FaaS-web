@@ -98,9 +98,13 @@ select {
 
 .navbar-custom .nav li a, .navbar-custom .nav li.divider {
   text-transform: uppercase;
-  font-size: 12px;
+  font-size: calc(1rem + 0.2vw);
   font-weight: 800;
   letter-spacing: 1px;
+}
+
+.navbar-brand {
+  font-size: calc(1.5rem + 0.2vw);
 }
 
 @media only screen and (min-width: 768px) {
