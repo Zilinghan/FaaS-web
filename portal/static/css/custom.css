@@ -289,3 +289,9 @@ h2, .h2 {
 .endpoint-info-item:nth-child(4n + 4) {
     grid-column: 4 / 5;
 }
+
+@media print {
+    .print-hide {
+      display: none;
+    }
+}

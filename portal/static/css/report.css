@@ -26,3 +26,17 @@ h2 {
     margin-inline-end: 0px;
     font-weight: bold;
 }
+
+@media print {
+    .print-hide {
+        display: none;
+    }
+
+    .print-expand {
+        display: block;
+    }
+    table {
+        border: none;
+    }
+}
+  

@@ -19,8 +19,27 @@
           <div class="quarto-title">
             <h1 style="border-bottom: 1px solid #eee;">{{report_title}}</h1>
           </div>
-          <!-- TODO: Add meta data for this report -->
-          <div class="quarto-title-meta"></div>
+          <button onclick="window.print();" class="print-hide">Print as PDF</button>
+          <div class="quarto-title-meta">
+            <table>
+              <thead>
+                <tr>
+                  <th class="blank level0"> </th>
+                  <th class="col_heading level0 col0"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th class="row_heading level0 row0">Group Name: &nbsp;&nbsp;</th>
+                  <td class="data row0 col0">{{hp_data.group_name}}</td>
+                </tr>
+                <tr>
+                  <th class="row_heading level0 row1">Experiment Name: &nbsp;&nbsp;</th>
+                  <td class="data row1 col0">{{hp_data.exp_name}}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </header>
 
         {# Section 1: Training Hyperparameters #}
@@ -31,7 +50,7 @@
             <div class="cell" data-execution_count="30">
               <div class="cell-output cell-output-display" data-execution_count="825">
                 <div class="container first-container col-sm-12 pull-left">
-                  <table class="table table-condensed">
+                  <table class="dataframe table table-sm table-striped">
                     <thead>
                       <tr>
                         <th></th>
@@ -84,7 +103,7 @@
                         <td>Type of trained model</td>
                         <td>{{hp_data.model_type}}</td>
                       </tr>
-                      <tr class="explode hide">
+                      <tr class="explode hide print-expand">
                         <td colspan="4" style="display: none;">
                           <table class="table table-striped">
                             <thead>
@@ -191,8 +210,8 @@
           <section id="site-validation" class="level4">
             <div class="cell" data-execution_count="30">
               <div class="cell-output cell-output-display" data-execution_count="825">
-                <div class="container first-container col-sm-12 pull-left">
-                  <table class="table table-condensed">
+                <div class="container first-container col-sm-12">
+                  <table class="dataframe table table-sm table-striped">
                     <thead>
                       <tr>
                         <th>endpoint</th>
@@ -224,7 +243,7 @@
         <section id="federated-learning-server-validation" class="level2">
           <h2 class="anchored" data-anchor-id="server-validation">Server Validation</h2>
           <span class="info-exploder" style="cursor: pointer; color:#6C757D;">▶ &nbsp;Click here to expand explanations:</span>
-          <div style="display: none;" class="hide">
+          <div style="display: none;" class="hide print-expand">
             <p style="margin: 0.5% 0;">This section has detailed server validation metrics for the federated learning.</p>
             <ul style="list-style: disc;">
               <li><b>step</b>–Index of the global training step (starting from 1).</li>
@@ -237,7 +256,7 @@
             <div class="cell" data-execution_count="30">
               <div class="cell-output cell-output-display" data-execution_count="825">
                 <div class="container first-container col-sm-12 pull-left">
-                  <table class="table table-condensed">
+                  <table class="dataframe table table-sm table-striped">
                     <thead>
                       <tr>
                         <th>step</th>
@@ -262,12 +281,12 @@
         </section>
         {%endif%}
 
-        {# Section 3: Training #}
+        {# Section 4: Training #}
         {%if training_data%}
         <section id="federated-learning-metrics" class="level2">
           <h2 class="anchored" data-anchor-id="training">Training</h2>
           <span class="info-exploder" style="cursor: pointer; color:#6C757D;">▶ &nbsp;Click here to expand explanations:</span>
-          <div style="display: none;" class="hide">
+          <div style="display: none;" class="hide print-expand">
             <p style="margin: 0.5% 0;">
             This section has detailed runtime metrics for the federation.
             </p>
@@ -286,7 +305,7 @@
             <div class="cell" data-execution_count="30">
               <div class="cell-output cell-output-display" data-execution_count="825">
                 <div class="container first-container col-sm-12 pull-left">
-                  <table class="table table-condensed">
+                  <table class="dataframe table table-sm">
                     <thead>
                       <tr>
                         <th></th>
@@ -311,8 +330,8 @@
                           <td>-</td>
                           <td>-</td>
                         </tr>
-                        <tr class="explode hide">
-                          <td colspan="6" style="display: none;">
+                        <tr class="explode hide print-expand">
+                          <td colspan="8" style="display: none;">
                             <table class="table table-striped">
                               <thead>
                                 <tr>
@@ -329,7 +348,7 @@
                                 {% endfor %}
                               </tbody>
                             </table>
-                        </td>
+                          </td>
                         </tr>
                       {% endfor %}
                     </tbody>
@@ -341,9 +360,9 @@
         </section>
         {%endif%}
 
-        {# Section 4: Client Test: TODO #}
+        {# Section 5: Client Test: TODO #}
 
-        {# Section 5: Server Test: TODO #}
+        {# Section 6: Server Test: TODO #}
 
       </main>
 
@@ -372,6 +391,47 @@
           $(this).next("div").slideDown();
         }
       })
+
+      function beforePrint() {
+        // Get all elements with class 'exploder'
+        var exploders = document.getElementsByClassName('exploder');
+
+        // Loop through each element in the list
+        for (var i = 0; i < exploders.length; i++) {
+          // Get the current element in the loop
+          var currentExploder = exploders[i];
+
+          // Check if the closest 'tr' element's next sibling has class 'hide'
+          if ($(currentExploder).closest("tr").next("tr").hasClass("hide")) {
+            // Unhide the exploder
+            $(currentExploder).closest("tr").next("tr").toggleClass("hide");
+            // Update the HTML of the current element
+            currentExploder.innerHTML = "▼ &nbsp;";
+            // Slide down the children of the next 'td' element
+            $(currentExploder).closest("tr").next("tr").children("td").slideDown(350);
+          }
+        }
+
+        // Get all elements with class 'info-exploder'
+        var infoExploders = document.getElementsByClassName('info-exploder');
+
+        // Loop through each element in the list
+        for (var i = 0; i < infoExploders.length; i++) {
+          // Get the current element in the loop
+          var currentInfoExploder = infoExploders[i];
+
+          // Check if the closest 'tr' element's next sibling has class 'hide'
+          if ($(currentInfoExploder).next("div").hasClass("hide")) {
+            // Unhide the exploder
+            $(currentInfoExploder).next("div").toggleClass("hide");
+            // Update the HTML of the current element
+            currentInfoExploder.innerHTML = "▼ &nbsp;Click here to expand explanations:";
+            // Slide down the children of the next 'td' element
+            $(currentInfoExploder).next("div").slideDown();
+          }
+        }
+      }
+      window.onbeforeprint = beforePrint;
       </script>
     </div>
   </body>

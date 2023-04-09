@@ -15,7 +15,7 @@ from portal.decorators import authenticated
 from flask import (abort, flash, redirect, render_template, request, session, url_for)
 from globus_sdk import (RefreshTokenAuthorizer, TransferAPIError, TransferClient, TransferData)
 from portal.utils import (get_portal_tokens, get_safe_redirect, group_tagging, get_servers_clients, \
-                          load_portal_client, load_group_client, \
+                          load_portal_client, load_group_client, FL_TAG,\
                           s3_download, s3_upload, s3_get_download_link, s3_download_folder, \
                           ecs_run_task, ecs_task_status, ecs_arn2id, ecs_parse_taskinfo, \
                           dynamodb_get_tasks, dynamodb_append_task, get_funcx_client, aws_get_log, \
@@ -388,6 +388,12 @@ def download_file(file_type="", group_id=None, task_id=None):
             with open(os.path.join(download_folder, 'appfl_config.yaml')) as f:
                 hp_data = yaml.safe_load(f)
             hp_data = hp_data_preprocessing(hp_data)
+
+            # Load the group name
+            gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+            group_name_raw = gc.get_group(group_id)["name"]
+            group_name = group_name_raw[:-len(FL_TAG)]
+            hp_data["group_name"] = group_name
 
             # Clean the downloaded files
             os.remove(os.path.join(download_folder, 'log_funcx.yaml'))
