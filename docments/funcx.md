@@ -38,6 +38,8 @@
 
 4. Confiugre the endpoint by editting the file `~/.funcx/<ENDPOINT_NAME>/config.py`. You can refer to these two sample configurations: [[CPU](config-cpu.py)] [[GPU](config-gpu.py)]. Please pay attention to the following points. More information of the configuration for endpoint can be found [here](https://funcx.readthedocs.io/en/latest/endpoints.html).
 
+    (0) If you are running on your own computer, not a computing resource/cluster requiring scheduler, **there is not need for you to change config.py**.
+
     (1) Put whatever cmds you want to run before starting a worker into `'worker_init'` part.
 
     (2) Put whatever cmds you want to run with `#SBATCH` into the `'scheduler_options'` part, e.g., change the `--mail-user` to your email address.
