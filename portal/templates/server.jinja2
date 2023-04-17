@@ -43,8 +43,8 @@
         {# TODO: Let the run of funcx-appfl choose which alg to run#}
         <form role="form" onsubmit="disableSubmitButton()" action="{{url_for('upload_server_config', server_group_id=server_group_id, run=True)}}" method="POST" enctype = "multipart/form-data">
           {# Drop-down box for selected federated learning algorithm #}
-          {% set fed_algs = ['Federated Average', 'Federated Average Momentum', 'Federated Adagrad', 'Federated Adam', 'Federated Yogi']%}
-          {% set fed_algs_func_names = ['ServerFedAvg', 'ServerFedAvgMomentum', 'ServerFedAdagrad', 'ServerFedAdam', 'ServerFedYogi']%}
+          {% set fed_algs = ['Federated Average', 'Federated Average Momentum', 'Federated Adagrad', 'Federated Adam', 'Federated Yogi', 'Federated Asynchronous']%}
+          {% set fed_algs_func_names = ['ServerFedAvg', 'ServerFedAvgMomentum', 'ServerFedAdagrad', 'ServerFedAdam', 'ServerFedYogi', 'ServerFedAsynchronous']%}
           <div class="form-group-inline">
             <label class="form-label-font">Federation Algorithm</label>
             <select name="fed-alg-select" id="fed-alg-select" class="form-control form-font-small">
@@ -134,7 +134,35 @@
             <label>Server Var Momentum</label>
             <input type="number" id="server-var-momentum"" name="server-var-momentum" class="form-control" value="0.99" required="required" min="1e-10" step="any">
           </div>
-
+          {# Mixing parameter #}
+          <div class="form-group-inline" style="display:none" id="server-mix-param-div">
+            <label>Mixing Parameter α</label>
+            <input type="number" id="server-mix-param"" name="server-mix-param" class="form-control" value="0.9" required="required" min="1e-10" max="1" step="any">
+          </div>
+          {# Regularization Strength #}
+          <div class="form-group-inline" style="display:none" id="server-reg-strength-div">
+            <label>Regularization Strength ρ</label>
+            <input type="number" id="server-reg-strength"" name="server-reg-strength" class="form-control" value="0" required="required" min="0" step="any">
+          </div>
+          {# Staleness Function #}
+          {% set staleness_funcs = ['constant', 'polynomial', 'hinge']%}
+          <div class="form-group-inline" style="display:none" id="server-sta-func-div">
+            <label>Staleness Function</label>
+            <select name="server-sta-func" id="server-sta-func" class="form-control form-font-small">
+            {% for sta_func in staleness_funcs%}
+              <option value="{{sta_func}}">{{sta_func}}</option>
+            {% endfor %}
+            </select>
+          </div>
+          {# Staleness Function Parameters #}
+          <div class="form-group-inline" style="display:none" id="server-sta-func-param-a-div">
+            <label>Parameter a</label>
+            <input type="number" id="server-sta-func-param-a"" name="server-sta-func-param-a" class="form-control" value="0.5" required="required" min="1e-10" step="any">
+          </div>
+          <div class="form-group-inline" style="display:none" id="server-sta-func-param-b-div">
+            <label>Parameter b</label>
+            <input type="number" id="server-sta-func-param-b"" name="server-sta-func-param-b" class="form-control" value="0" required="required" min="0" step="1">
+          </div>
 
           <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
           {# Upload Model #}
@@ -336,6 +364,13 @@
           document.getElementById('server-adapt-param-div').style.display = "none";
           document.getElementById('server-momentum-div').style.display = "none";
           document.getElementById('server-var-momentum-div').style.display = "none";
+
+          document.getElementById('server-mix-param-div').style.display = "none";
+          document.getElementById('server-reg-strength-div').style.display = "none";
+          document.getElementById('server-sta-func-div').style.display = "none";
+          document.getElementById('server-sta-func').value = "constant";
+          document.getElementById('server-sta-func-param-a-div').style.display = "none";
+          document.getElementById('server-sta-func-param-b-div').style.display = "none";
         }
         else if (selectedAlg == 'ServerFedAvgMomentum') {
           document.getElementById('hide-line').style.display = "block";
@@ -343,6 +378,13 @@
           document.getElementById('server-adapt-param-div').style.display = "none";
           document.getElementById('server-momentum-div').style.display = "flex";
           document.getElementById('server-var-momentum-div').style.display = "none";
+
+          document.getElementById('server-mix-param-div').style.display = "none";
+          document.getElementById('server-reg-strength-div').style.display = "none";
+          document.getElementById('server-sta-func-div').style.display = "none";
+          document.getElementById('server-sta-func').value = "constant";
+          document.getElementById('server-sta-func-param-a-div').style.display = "none";
+          document.getElementById('server-sta-func-param-b-div').style.display = "none";
         }
         else if (selectedAlg == 'ServerFedAdagrad') {
           document.getElementById('hide-line').style.display = "block";
@@ -350,6 +392,13 @@
           document.getElementById('server-adapt-param-div').style.display = "flex";
           document.getElementById('server-momentum-div').style.display = "flex";
           document.getElementById('server-var-momentum-div').style.display = "none";
+
+          document.getElementById('server-mix-param-div').style.display = "none";
+          document.getElementById('server-reg-strength-div').style.display = "none";
+          document.getElementById('server-sta-func-div').style.display = "none";
+          document.getElementById('server-sta-func').value = "constant";
+          document.getElementById('server-sta-func-param-a-div').style.display = "none";
+          document.getElementById('server-sta-func-param-b-div').style.display = "none";
         }
         else if (selectedAlg == 'ServerFedAdam' || selectedAlg == 'ServerFedYogi') {
           document.getElementById('hide-line').style.display = "block";
@@ -357,6 +406,27 @@
           document.getElementById('server-adapt-param-div').style.display = "flex";
           document.getElementById('server-momentum-div').style.display = "flex";
           document.getElementById('server-var-momentum-div').style.display = "flex";
+
+          document.getElementById('server-mix-param-div').style.display = "none";
+          document.getElementById('server-reg-strength-div').style.display = "none";
+          document.getElementById('server-sta-func-div').style.display = "none";
+          document.getElementById('server-sta-func').value = "constant";
+          document.getElementById('server-sta-func-param-a-div').style.display = "none";
+          document.getElementById('server-sta-func-param-b-div').style.display = "none";
+        }
+        else if (selectedAlg == 'ServerFedAsynchronous') {
+          document.getElementById('hide-line').style.display = "block";
+          document.getElementById('server-lr-div').style.display = "none";
+          document.getElementById('server-adapt-param-div').style.display = "none";
+          document.getElementById('server-momentum-div').style.display = "none";
+          document.getElementById('server-var-momentum-div').style.display = "none";
+
+          document.getElementById('server-mix-param-div').style.display = "flex";
+          document.getElementById('server-reg-strength-div').style.display = "flex";
+          document.getElementById('server-sta-func-div').style.display = "flex";
+          document.getElementById('server-sta-func').value = "constant";
+          document.getElementById('server-sta-func-param-a-div').style.display = "none";
+          document.getElementById('server-sta-func-param-b-div').style.display = "none";
         }
       });
       $('#client-optimizer').change(function(){
@@ -368,6 +438,21 @@
           document.getElementById('client-lr').value = '0.001';
         }
       });
+      $('#server-sta-func').change(function(){
+        var selectedStalenessFunc = $(this).val();
+        if (selectedStalenessFunc == 'constant'){
+          document.getElementById('server-sta-func-param-a-div').style.display = "none";
+          document.getElementById('server-sta-func-param-b-div').style.display = "none";
+        }
+        else if (selectedStalenessFunc == 'polynomial'){
+          document.getElementById('server-sta-func-param-a-div').style.display = "flex";
+          document.getElementById('server-sta-func-param-b-div').style.display = "none";
+        }
+        else if (selectedStalenessFunc == 'hinge'){
+          document.getElementById('server-sta-func-param-a-div').style.display = "flex";
+          document.getElementById('server-sta-func-param-b-div').style.display = "flex";
+        }
+      })
     });
   </script>
 {%endblock%}

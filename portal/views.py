@@ -674,6 +674,22 @@ def load_server_config(form, server_group_id):
     if form['server-var-momentum'] < 0:
         error_count += 1
         flash(f"Error {error_count}: Server Variance Momentum cannot be negative!")
+    form['server-mix-param'] = float(form['server-mix-param'])
+    if form['server-mix-param'] <= 0 or form['server-mix-param'] > 1:
+        error_count += 1
+        flash(f"Error {error_count}: Mixing parameter should be in range(0, 1]!")
+    form['server-reg-strength'] = float(form['server-reg-strength'])
+    if form['server-reg-strength'] < 0:
+        error_count += 1
+        flash(f"Error {error_count}: Regularization strength cannot be negative!")
+    form['server-sta-func-param-a'] = float(form['server-sta-func-param-a'])
+    if form['server-sta-func-param-a'] <= 0:
+        error_count += 1
+        flash(f"Error {error_count}: Parameter a must be positive!")
+    form['server-sta-func-param-b'] = float(form['server-sta-func-param-b'])
+    if form['server-sta-func-param-a'] < 0:
+        error_count += 1
+        flash(f"Error {error_count}: Parameter b cannot be negative!")
     form['client-lr'] = float(form['client-lr'])
     if form['client-lr'] < 0:
         error_count += 1
@@ -734,6 +750,15 @@ def load_server_config(form, server_group_id):
     appfl_config['algorithm']['clientname'] = 'FuncxClientOptim'
     #TODO: I think server_lr_decay_exp_gamma is not a suitable name
     appfl_config['algorithm']['args'] = {
+        'alpha': form['server-mix-param'],
+        'rho': form['server-reg-strength'],
+        'staness_func': {
+            'name': form['server-sta-func'], 
+            'args': {
+                'a': form['server-sta-func-param-a'],
+                'b': form['server-sta-func-param-b']
+            }
+        },
         'server_learning_rate': form['server-lr'],
         'server_adapt_param': form['server-adapt-param'],
         'server_momentum_param_1': form['server-momentum'],
