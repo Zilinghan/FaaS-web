@@ -356,6 +356,10 @@ def download_file(file_type="", group_id=None, task_id=None):
             with open(os.path.join(config_folder, config_name)) as f:
                 hp_data = yaml.safe_load(f)
             hp_data = hp_data_preprocessing(hp_data)
+            # Load the group name
+            group_name_raw = gc.get_group(group_id)["name"]
+            group_name = group_name_raw[:-len(FL_TAG)]
+            hp_data["group_name"] = group_name
             os.remove(os.path.join(config_folder, config_name))
             return render_template('report.jinja2',
                                    tab_title='Federation Configuration',

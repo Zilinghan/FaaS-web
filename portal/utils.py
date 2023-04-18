@@ -123,7 +123,8 @@ def hp_data_preprocessing(data):
         'ServerFedAvgMomentum': 'Federated Average Momentum',
         'ServerFedAdagrad': 'Federated Adagrad',
         'ServerFedAdam': 'Federated Adam',
-        'ServerFedYogi': 'Federated Yogi'
+        'ServerFedYogi': 'Federated Yogi',
+        'ServerFedAsynchronous': 'Federated Asynchronous'
     }
     fed_alg = data['algorithm']['servername']
     hp_data['fed_alg'] = fed_alg_dict[fed_alg]
@@ -144,6 +145,16 @@ def hp_data_preprocessing(data):
         hp_data['server_lr']      = data['algorithm']['args']['server_learning_rate']
         hp_data['server_adapt']   = data['algorithm']['args']['server_adapt_param']
         hp_data['server_var_mom'] = data['algorithm']['args']['server_momentum_param_2']
+    elif fed_alg == 'ServerFedAsynchronous':
+        hp_data['server_mix_param'] = data['algorithm']['args']['alpha']
+        hp_data['reg_strength'] = data['algorithm']['args']['rho']
+        sta_func = data['algorithm']['args']['staness_func']['name']
+        hp_data['staleness_func'] = sta_func
+        if sta_func == 'polynomial':
+            hp_data['parameter_a'] = data['algorithm']['args']['staness_func']['args']['a']
+        elif sta_func == 'hinge':
+            hp_data['parameter_a'] = data['algorithm']['args']['staness_func']['args']['a']
+            hp_data['parameter_b'] = data['algorithm']['args']['staness_func']['args']['b']
     hp_data['optimizer'] = data['algorithm']['args']['optim']
     hp_data['lr'] = data['algorithm']['args']['optim_args']['lr']
     hp_data['lr_decay'] = data['algorithm']['args']['server_lr_decay_exp_gamma']

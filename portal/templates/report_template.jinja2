@@ -156,6 +156,46 @@
                         <td>{{hp_data.server_var_mom}}</td>
                       </tr>
                       {%endif%}
+                      {%if hp_data.server_mix_param%}
+                      <tr class="sub-container">
+                        <td></td>
+                        <td>Server mixing parameter</td>
+                        <td>Mixing parameter for new local state</td>
+                        <td>{{hp_data.server_mix_param}}</td>
+                      </tr>
+                      {%endif%}
+                      {%if hp_data.reg_strength%}
+                      <tr class="sub-container">
+                        <td></td>
+                        <td>Regularization strength</td>
+                        <td>Regularization factor for loss function</td>
+                        <td>{{hp_data.reg_strength}}</td>
+                      </tr>
+                      {%endif%}
+                      {%if hp_data.staleness_func%}
+                      <tr class="sub-container">
+                        <td></td>
+                        <td>Staleness function</td>
+                        <td>Constant/Polynomial/Hinge</td>
+                        <td>{{hp_data.staleness_func}}</td>
+                      </tr>
+                      {%endif%}
+                      {%if hp_data.parameter_a%}
+                      <tr class="sub-container">
+                        <td></td>
+                        <td>Parameter a</td>
+                        <td>First parameter for staleness function</td>
+                        <td>{{hp_data.parameter_a}}</td>
+                      </tr>
+                      {%endif%}
+                      {%if hp_data.parameter_b%}
+                      <tr class="sub-container">
+                        <td></td>
+                        <td>Parameter b</td>
+                        <td>Second parameter for staleness function</td>
+                        <td>{{hp_data.parameter_b}}</td>
+                      </tr>
+                      {%endif%}
                       <tr class="sub-container">
                         <td></td>
                         <td>Optimizer</td>
