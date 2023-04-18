@@ -774,7 +774,8 @@ def load_server_config(form, server_group_id):
         'server_lr_decay_exp_gamma': form['client-lr-decay'],
         'client_weights': form['client-weights'],
         'clip_value': form['clip-value'],
-        'clip_norm': form['clip-norm']
+        'clip_norm': form['clip-norm'],
+        'benchmarking_set': form['benchmark-set']
     }
     appfl_config['training'] = {
         'num_epochs': form['server-training-epoch'],

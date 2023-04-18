@@ -83,6 +83,21 @@
           </div>
 
           <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
+          {# Server Validation Set for Benchmarking #}
+          <label>
+          Server Validation Set for Benchmarking
+          <img src="{{url_for('static', filename='img/info2.png')}}" tabindex="0" class="info-icon" role="button" data-toggle="popover" data-trigger="focus" title="Server Validation Set for Benchmarking" data-content="If you are running experiments on real datasets, select None. If you are running algorithm benchmarking on dataset MNIST/FEMNIST/CIFAR10, select the corresponding dataset name for the server to load the validation set and do server validation on models."/>
+          </label>
+          <div>
+            <label style="margin-right:10%">
+            <input type="radio" name="benchmark-set" value="None" checked> None
+            </label>
+            <label>
+            <input type="radio" name="benchmark-set" value="MNIST"> MNIST
+            </label>
+          </div>
+
+          <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
           {# TODO: Probably add some hints on what these mean #}
           {# Privacy Budget #}
           <div class="form-group-inline">
