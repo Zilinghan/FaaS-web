@@ -7,6 +7,9 @@ globus/
 output/
 RawData/
 .DS_Store
+portal/*.yaml
+portal/*.json
+/*.sh
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
