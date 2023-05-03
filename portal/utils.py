@@ -22,12 +22,12 @@ s3 = boto3.client('s3')
 ecs = boto3.client('ecs')
 log = boto3.client('logs')
 dynamodb = boto3.resource('dynamodb')
-dynamodb_table = dynamodb.Table('appfl-tasks')
+dynamodb_table = dynamodb.Table('appflx-tasks')
 # Hard code for ECS information
-ECS_CLUSTER = 'flaas-anl-test-cluster' 
-ECS_TASK_DEF = 'pytest2-task-def-3'
-ECS_IMAGE_NAME = 'pytest2'
-S3_BUCKET_NAME = 'flaas-anl-test' 
+ECS_CLUSTER = 'appflx-cluster' 
+ECS_TASK_DEF = 'appflx-fl-server'
+ECS_IMAGE_NAME = 'flserver'
+S3_BUCKET_NAME = 'appflx-bucket' 
 
 class FuncXLoginManager:
     """Implements the funcx.sdk.login_manager.protocol.LoginManagerProtocol class."""
@@ -247,20 +247,25 @@ def s3_upload(bucket_name, key_name, file_name, delete_local=True):
 
 def ecs_run_task(cmd):
     response = ecs.run_task(
-        cluster='flaas-anl-test-cluster',
-        taskDefinition='pytest2-task-def-3',
+        cluster=ECS_CLUSTER,
+        taskDefinition=ECS_TASK_DEF,
         count=1,
         launchType='FARGATE',
         networkConfiguration={
             'awsvpcConfiguration': {
-                'subnets': ['subnet-0ae916ead3118ec21', 'subnet-0c88864adf8950099', 'subnet-023d1cdc4f0bc871a', 'subnet-0285ff6457e1fbe35', 'subnet-06d99e5eaad06ad79', 'subnet-06ac227a962b9bfde'],
+                'subnets': ['subnet-0bfec7d4ab40ce975', 
+                            'subnet-045cc8ea2cd9ba216', 
+                            'subnet-07396ea53e7cdb3e0', 
+                            'subnet-0c531ab49624e9bb3', 
+                            'subnet-0c4b4157fefd0b45d', 
+                            'subnet-0c54d032c74a7986a'],
                 
                 'assignPublicIp': 'ENABLED'
             }
         },
         overrides = {
             'containerOverrides': [{
-                'name': 'pytest2',
+                'name': ECS_IMAGE_NAME,
                 'command': cmd,
             }]
         }

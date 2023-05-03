@@ -25,7 +25,7 @@ try:
 except ImportError:
     from urllib import urlencode
 
-S3_BUCKET_NAME = 'flaas-anl-test' 
+S3_BUCKET_NAME = 'appflx-bucket' 
 STATUS_CHECK_TIMES = 5
 
 @app.route('/', methods=['GET'])
