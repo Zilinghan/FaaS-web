@@ -723,12 +723,18 @@ def load_server_config(form, server_group_id):
             flash(f"Error {error_count}: Input height must be positive!")
     # If user uploads a custom model
     else:
-        upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id)
-        if not os.path.exists(upload_folder):
-            os.makedirs(upload_folder)
-        model_file = request.files['custom-model-file']
-        model_file_fp = os.path.join(upload_folder, 'model.py')
-        model_file.save(model_file_fp)
+        if form['model-type'] == 'custom':
+            upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id)
+            if not os.path.exists(upload_folder):
+                os.makedirs(upload_folder)
+            model_file = request.files['custom-model-file']
+            model_file_fp = os.path.join(upload_folder, 'model.py')
+            model_file.save(model_file_fp)
+        else:
+            pass
+        
+        
+        
         model_key = f'{server_group_id}/{server_id}/model.py'
         
         # Upload the model file to AWS S3
@@ -842,21 +848,21 @@ def upload_server_config(server_group_id, run='True'):
         group_members_str += ','
     group_members_str = group_members_str[:-1]
 
-    # # Test Code
-    # task_id = 'randomid'
-    # appfl_config_key = f'{server_group_id}/{server_id}/{task_id}/appfl_config.yaml'
-    # appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')
-    # if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
-    #     flash("Error: The configuration file is not uploaded successfully!")
-    #     return redirect(request.referrer)
-    # print(f'Group members: {group_members_str}')
-    # print(f'Server ID: {server_id}')
-    # print(f'Group ID: {server_group_id}')
-    # print(f'Upload folder: {app.config["UPLOAD_FOLDER"]}')
-    # print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
-    # print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
-    # print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
-    # return redirect(url_for('dashboard'))
+    # Test Code
+    task_id = 'randomid'
+    appfl_config_key = f'{server_group_id}/{server_id}/{task_id}/appfl_config.yaml'
+    appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')
+    if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
+        flash("Error: The configuration file is not uploaded successfully!")
+        return redirect(request.referrer)
+    print(f'Group members: {group_members_str}')
+    print(f'Server ID: {server_id}')
+    print(f'Group ID: {server_group_id}')
+    print(f'Upload folder: {app.config["UPLOAD_FOLDER"]}')
+    print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
+    print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
+    print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
+    return redirect(url_for('dashboard'))
 
     # Those parameters should be passed to the container
     task_arn = ecs_run_task([group_members_str, 
