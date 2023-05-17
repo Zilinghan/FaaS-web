@@ -20,6 +20,11 @@ from portal.utils import (get_portal_tokens, get_safe_redirect, group_tagging, g
                           ecs_run_task, ecs_task_status, ecs_arn2id, ecs_parse_taskinfo, \
                           dynamodb_get_tasks, dynamodb_append_task, get_funcx_client, aws_get_log, \
                           training_data_preprocessing, val_test_data_preprocessing, hp_data_preprocessing)
+from portal.github_integration import github_bp
+import base64
+
+app.register_blueprint(github_bp, url_prefix='/github_integration')
+
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -292,6 +297,9 @@ def browse_config(server_group_id=None, client_group_id=None):
         Note: two inputs are mutually exclusive
     """
     gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    client_id = app.config['GITHUB_CLIENT_ID']
+    redirect_uri =app.config['GITHUB_REDIRECT_URI']
+    auth_url = f"https://github.com/login/oauth/authorize?client_id={client_id}&scope=repo&redirect_uri={redirect_uri}"
     
     if server_group_id is not None:
         server_info = gc.get_group(server_group_id, include=['my_memberships'])['my_memberships'][0]
@@ -303,7 +311,8 @@ def browse_config(server_group_id=None, client_group_id=None):
                                client_names=client_names, \
                                client_endpoints=client_endpoints, \
                                client_emails=client_emails, \
-                               client_orgs=client_orgs)
+                               client_orgs=client_orgs, \
+                               auth_url=auth_url)
     if client_group_id is not None:
         client_group = gc.get_group(client_group_id)
         return render_template('client.jinja2', client_group=client_group, client_group_id=client_group_id)
@@ -730,8 +739,39 @@ def load_server_config(form, server_group_id):
             model_file = request.files['custom-model-file']
             model_file_fp = os.path.join(upload_folder, 'model.py')
             model_file.save(model_file_fp)
-        else:
-            pass
+        elif form['model-type'] == 'github':
+            # Handle GitHub file selection here
+            upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id)
+            access_token = session.get('access_token')
+            repo_name = form.get('github-repo-name') 
+            branch = form.get('github-branch') 
+            file_path = form.get('github-file-path') 
+
+            # Make a request to the GitHub API to get the file's contents
+            file_response = requests.get(
+                f"https://api.github.com/repos/{session.get('username')}/{repo_name}/contents/{file_path}?ref={branch}",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/vnd.github.v3+json"
+                }
+            )
+
+            if file_response.status_code == 200:
+                # Extract the file data from the response
+                file_data = file_response.json()
+
+                # Decode the base64 content without decoding it to a string
+                file_content = base64.b64decode(file_data['content'])
+
+                # Open the file in binary mode to write
+                model_file_fp = os.path.join(upload_folder, 'model.py')
+                with open(model_file_fp, "wb") as f:
+                    f.write(file_content)
+                print("==================upload from github success!====================")
+            else:
+                # Handle errors
+                print("====================upload from github error====================")
+                return "Error occurred."
         
         
         
@@ -744,7 +784,7 @@ def load_server_config(form, server_group_id):
             error_count += 1
 
     if error_count > 0:
-        return error_count, None
+        return error_count, None, None
 
     # TODO: How to deal with this log file if we move things to cloud (data to S3, and probably the running in a container)
     server_log_dir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id, 'logs')
