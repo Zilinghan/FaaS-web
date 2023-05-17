@@ -2,6 +2,14 @@ from flask import Blueprint, session, request, render_template, jsonify
 import requests
 from portal import app
 
+''' 
+    Integrated the functionality to upload file from github
+    To use this, 
+    set GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET in portal.conf according to the Oauth app
+    and set GITHUB_REDIRECT_URI in portal.conf and Oauth app to the route <root_page>/github_integration/github_callback
+'''
+
+
 github_bp = Blueprint('github_integration', __name__)
 
 # Your GitHub OAuth app's client_id and client_secret
