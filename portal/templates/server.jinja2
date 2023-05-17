@@ -268,6 +268,7 @@
               <div class="modal-content">
                 <div class="modal-header">
                 <h4 class="modal-title" id="githubModalLabel">Select File</h4>
+                <input type="text" id="searchInput" style="margin-top:10px" onkeyup="searchFiles()" placeholder="Search for ...">
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                   <span aria-hidden="true">&times;</span>
                 </button>
@@ -366,7 +367,7 @@
 
     // Bind to the back button in the modal
     function goBack() {
-        if (pathStack.length === 0) {
+        if (pathStack.length === 1) {
             $('#githubModal').modal('hide'); // Close the modal
             return;
         }
@@ -400,6 +401,33 @@
         return false;
     }
 
+    var reposArray = [];
+    var branchesArray = [];
+    var filesArray = [];
+
+    function searchFiles() {
+        var query = document.getElementById('searchInput').value.toUpperCase();
+        var filteredArray = [];
+
+        var lastState = pathStack[pathStack.length - 1];  // Get the last state
+        if (lastState instanceof RepoState) {
+            filteredArray = reposArray.filter(function(repo) {
+              return repo.name.toUpperCase().includes(query);
+            });
+            displayRepos(filteredArray);
+        } else if (lastState instanceof BranchState) {
+            filteredArray = branchesArray.filter(function(branch) {
+              return branch.name.toUpperCase().includes(query);
+            });
+            displayBranches(lastState.owner, lastState.repoName, filteredArray);
+        } else if (lastState instanceof PathState) {
+            filteredArray = filesArray.filter(function(file) {
+              return file.name.toUpperCase().includes(query);
+            });
+            displayFiles(lastState.owner, lastState.repoName, lastState.branchName, lastState.path, filteredArray);
+        }
+    }
+
     function getRepos(back = false) {
         // Check if 'back' is an event object and if so, default it to false
         if (typeof back === 'object' && back instanceof Event) {
@@ -412,21 +440,25 @@
 
         // Make an AJAX request to get the repositories
         $.get("/github_integration/github_callback", function(data){
-            // Clear the modal body
-            $("#githubModalBody").empty();
+            reposArray = data;
+            displayRepos(data);
+        });
+    }
 
-            // No repos are fetched
-            if (typeof data == "string") {
-              return;
-            }
+    function displayRepos(data) {
+        // Clear the modal body
+        $("#githubModalBody").empty();
 
-            // Add each repository to the modal body
-            $.each(data, function(index, repo) {
-                $("#githubModalBody").append(`
-                    <a href="#" class="list-group-item list-group-item-action" onclick="getRepoBranches('${repo.owner.login}', '${repo.name}');">${repo.name}</a>
-                `);
-            });
+        // No repos are fetched
+        if (typeof data == "string") {
+          return;
+        }
 
+        // Add each repository to the modal body
+        $.each(data, function(index, repo) {
+            $("#githubModalBody").append(`
+                <a href="#" class="list-group-item list-group-item-action" onclick="getRepoBranches('${repo.owner.login}', '${repo.name}');">${repo.name}</a>
+            `);
         });
     }
 
@@ -438,13 +470,18 @@
 
         // Make an AJAX request to get the repository branches
         $.get(`/github_integration/selected_repo/${owner}/${repoName}/branches`, function(data){
-            // Clear the modal body
-            $("#githubModalBody").empty();
+            branchesArray = data;
+            displayBranches(owner, repoName, data);
+        });
+    }
 
-            // Add each branch to the modal body
-            $.each(data, function(index, branch) {
-                $("#githubModalBody").append(`<a href="#" class="list-group-item list-group-item-action" onclick="getRepoFiles('${owner}', '${repoName}', '${branch.name}');">${branch.name}</a>`);
-            });
+    function displayBranches(owner, repoName, data) {
+        // Clear the modal body
+        $("#githubModalBody").empty();
+
+        // Add each branch to the modal body
+        $.each(data, function(index, branch) {
+            $("#githubModalBody").append(`<a href="#" class="list-group-item list-group-item-action" onclick="getRepoFiles('${owner}', '${repoName}', '${branch.name}');">${branch.name}</a>`);
         });
     }
 
@@ -456,36 +493,41 @@
 
         // Make an AJAX request to get the repository files
         $.get(`/github_integration/selected_repo/${owner}/${repoName}/${branchName}/${path}`, function(data){
-            // Clear the modal body
-            $("#githubModalBody").empty();
+            filesArray = data;
+            displayFiles(owner, repoName, branchName, path, data);
+        });
+    }
 
-            // Iterate over each file in data
-            $.each(data, function(index, file) {
-                // Check if the file is a directory
-                if(file.type == "dir") {
-                    // If the file is a directory, add a click handler to the paragraph that will call getRepoFiles
-                    var dirElement = $('<a/>')
-                                        .addClass("list-group-item list-group-item-action")
-                                        .attr("href", "#")
-                                        .text(file.name)
-                                        .on('click', function() {
-                                            getRepoFiles(owner, repoName, branchName, file.path);
-                                        });
-                    $("#githubModalBody").append(dirElement);
-                } else {
-                    // If the file is not a directory, just display its name
-                    var fileElement = $('<a/>')
-                                        .addClass("list-group-item list-group-item-action")
-                                        .text(file.name)
-                                        .on('click', function() {
-                                            $("#github-repo-name").val(repoName);
-                                            $("#github-branch").val(branchName);
-                                            $("#github-file-path").val(file.path);
-                                            $('#githubModal').modal('hide');
-                                        });
-                    $("#githubModalBody").append(fileElement);
-                }
-            });
+    function displayFiles(owner, repoName, branchName, path, data) {
+        // Clear the modal body
+        $("#githubModalBody").empty();
+
+        // Iterate over each file in data
+        $.each(data, function(index, file) {
+            // Check if the file is a directory
+            if(file.type == "dir") {
+                // If the file is a directory, add a click handler to the paragraph that will call getRepoFiles
+                var dirElement = $('<a/>')
+                                    .addClass("list-group-item list-group-item-action")
+                                    .attr("href", "#")
+                                    .text(file.name)
+                                    .on('click', function() {
+                                        getRepoFiles(owner, repoName, branchName, file.path);
+                                    });
+                $("#githubModalBody").append(dirElement);
+            } else {
+                // If the file is not a directory, just display its name
+                var fileElement = $('<a/>')
+                                    .addClass("list-group-item list-group-item-action")
+                                    .text(file.name)
+                                    .on('click', function() {
+                                        $("#github-repo-name").val(repoName);
+                                        $("#github-branch").val(branchName);
+                                        $("#github-file-path").val(file.path);
+                                        $('#githubModal').modal('hide');
+                                    });
+                $("#githubModalBody").append(fileElement);
+            }
         });
     }
 
