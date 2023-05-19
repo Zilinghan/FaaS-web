@@ -315,7 +315,7 @@ def browse_config(server_group_id=None, client_group_id=None):
                                auth_url=auth_url)
     if client_group_id is not None:
         client_group = gc.get_group(client_group_id)
-        return render_template('client.jinja2', client_group=client_group, client_group_id=client_group_id)
+        return render_template('client.jinja2', client_group=client_group, client_group_id=client_group_id, auth_url=auth_url)
     return render_template('dashboard.jinja2')
 
 @app.route('/browse/server-info/<server_group_id>', methods=['GET'])
@@ -666,6 +666,9 @@ def upload_client_config(client_group_id):
     Input:
         - client_group_id: Globus group id for the client
     """
+    # Get the html form
+    form = request.form
+
     gc          = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
     client_info = gc.get_group(client_group_id, include=['my_memberships'])['my_memberships'][0]
     client_id   = client_info['identity_id']
@@ -684,8 +687,46 @@ def upload_client_config(client_group_id):
         yaml.dump(client_config, f, default_flow_style=False)
 
     # Save the dataloader
-    loader_file = request.files['client-dataloader']
-    loader_file.save(os.path.join(upload_folder, 'dataloader.py'))
+    if form['loader-type'] == 'custom':
+        upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], client_group_id, client_id)
+        if not os.path.exists(upload_folder):
+            os.makedirs(upload_folder)
+        loader_file = request.files['client-dataloader']
+        loader_file_fp = os.path.join(upload_folder, 'dataloader.py')
+        loader_file.save(loader_file_fp)
+    elif form['loader-type'] == 'github':
+        # Handle GitHub file selection here
+        upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], client_group_id, client_id)
+        access_token = session.get('access_token')
+        repo_name = form.get('github-repo-name') 
+        branch = form.get('github-branch') 
+        file_path = form.get('github-file-path') 
+
+        # Make a request to the GitHub API to get the file's contents
+        file_response = requests.get(
+            f"https://api.github.com/repos/{session.get('username')}/{repo_name}/contents/{file_path}?ref={branch}",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "application/vnd.github.v3+json"
+            }
+        )
+
+        if file_response.status_code == 200:
+            # Extract the file data from the response
+            file_data = file_response.json()
+
+            # Decode the base64 content without decoding it to a string
+            file_content = base64.b64decode(file_data['content'])
+
+            # Open the file in binary mode to write
+            loader_file_fp = os.path.join(upload_folder, 'dataloader.py')
+            with open(loader_file_fp, "wb") as f:
+                f.write(file_content)
+            print("==================upload from github success!====================")
+        else:
+            # Handle errors
+            print("====================upload from github error====================")
+            return "Error occurred."
 
     # Upload the files to AWS S3
     error_count = 0
@@ -963,20 +1004,20 @@ def upload_server_config(server_group_id, run='True'):
     group_members_str = group_members_str[:-1]
 
     # Test Code
-    task_id = 'randomid'
-    appfl_config_key = f'{server_group_id}/{server_id}/{task_id}/appfl_config.yaml'
-    appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')
-    if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
-        flash("Error: The configuration file is not uploaded successfully!")
-        return redirect(request.referrer)
-    print(f'Group members: {group_members_str}')
-    print(f'Server ID: {server_id}')
-    print(f'Group ID: {server_group_id}')
-    print(f'Upload folder: {app.config["UPLOAD_FOLDER"]}')
-    print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
-    print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
-    print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
-    return redirect(url_for('dashboard'))
+    # task_id = 'randomid'
+    # appfl_config_key = f'{server_group_id}/{server_id}/{task_id}/appfl_config.yaml'
+    # appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')
+    # if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
+    #     flash("Error: The configuration file is not uploaded successfully!")
+    #     return redirect(request.referrer)
+    # print(f'Group members: {group_members_str}')
+    # print(f'Server ID: {server_id}')
+    # print(f'Group ID: {server_group_id}')
+    # print(f'Upload folder: {app.config["UPLOAD_FOLDER"]}')
+    # print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
+    # print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
+    # print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
+    # return redirect(url_for('dashboard'))
 
     # Those parameters should be passed to the container
     task_arn = ecs_run_task([group_members_str, 
