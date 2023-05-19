@@ -337,7 +337,7 @@ def browse_info(server_group_id=None, client_group_id=None):
         task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
         server_group = gc.get_group(server_group_id, include=["memberships"])
         client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id, server_id)
-        return render_template('server_info.jinja2', \
+        return render_template('server_info_cp.jinja2', \
                                 server_group_id=server_group_id, \
                                 client_names=client_names, \
                                 client_endpoints=client_endpoints, \
@@ -348,6 +348,80 @@ def browse_info(server_group_id=None, client_group_id=None):
                                 task_names=task_names)
     if client_group_id is not None:
         return render_template('client_info.jinja2', client_group_id=client_group_id)
+
+@app.route('/download/comp_report/<group_id>', methods=['GET'])
+def download_comp_report(group_id=None):
+    task_ids = request.args.get('task_ids')
+    # task_ids is a string of comma-separated ids, split it into a list
+    task_ids = task_ids.split(',')
+    gc      = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    my_info = gc.get_group(group_id, include=['my_memberships'])['my_memberships'][0]
+    group_name_raw = gc.get_group(group_id)["name"]
+    group_name = group_name_raw[:-len(FL_TAG)]
+    user_id = my_info['identity_id']
+    if group_id is not None:
+        training_data_list = []
+        client_validation_list = []
+        server_validation_list = []
+        client_test_list = []
+        server_test_list = []
+        hp_data_list = []
+        for task_id in task_ids:
+            config_key      = f'{group_id}/{user_id}/{task_id}/appfl_config.yaml'
+            train_key       = f'{group_id}/{user_id}/{task_id}/log_funcx.yaml'
+            eval_key        = f'{group_id}/{user_id}/{task_id}/log_eval.json'
+            download_folder = os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id, task_id)
+            if s3_download(S3_BUCKET_NAME, config_key, download_folder, 'appfl_config.yaml') and \
+               s3_download(S3_BUCKET_NAME, train_key, download_folder, 'log_funcx.yaml') and \
+               s3_download(S3_BUCKET_NAME, eval_key, download_folder, 'log_eval.json'):
+                # Load the training metrics
+                with open(os.path.join(download_folder, 'log_funcx.yaml')) as f:
+                    training_data = yaml.safe_load(f)
+                training_data = training_data_preprocessing(training_data)
+
+                # Load the validation and test results
+                with open(os.path.join(download_folder, 'log_eval.json')) as f:
+                    val_test_data = json.load(f)
+                client_validation, server_validation, client_test, server_test = val_test_data_preprocessing(val_test_data)
+
+                # Load the training hyperparameters
+                with open(os.path.join(download_folder, 'appfl_config.yaml')) as f:
+                    hp_data = yaml.safe_load(f)
+                hp_data = hp_data_preprocessing(hp_data)
+
+                hp_data["group_name"] = group_name
+
+                # Add to the list
+                training_data_list.append(training_data)
+                client_validation_list.append(client_validation)
+                server_validation_list.append(server_validation)
+                client_test_list.append(client_test)
+                server_test_list.append(server_test)
+                hp_data_list.append(hp_data)
+
+                # Clean the downloaded files
+                os.remove(os.path.join(download_folder, 'log_funcx.yaml'))
+                os.remove(os.path.join(download_folder, 'log_eval.json'))
+                os.remove(os.path.join(download_folder, 'appfl_config.yaml'))
+                
+            else:
+                flash("There is no report for this federation!")
+                return redirect(request.referrer)
+            
+        return render_template('comp-report/comp_report.jinja2', 
+                                tab_title='Federation Comparison Report',
+                                report_title='Federation Comparison Report',
+                                training_data_list=json.dumps(training_data_list), 
+                                client_validation_list=json.dumps(client_validation_list), 
+                                server_validation_list=json.dumps(server_validation_list),
+                                client_test_list=json.dumps(client_test_list),
+                                server_test_list=json.dumps(server_test_list),
+                                hp_data_list=hp_data_list,
+                                hp_data_list_json=json.dumps(hp_data_list))
+    else:
+        flash("Sorry, this function is still not implemented!")
+        return redirect(request.referrer)
+
 
 @app.route('/download/<file_type>/<group_id>', methods=['GET'])
 @app.route('/download/<file_type>/<group_id>/<task_id>', methods=['GET'])
@@ -928,6 +1002,11 @@ def upload_server_config(server_group_id, run='True'):
     # flash("The federation is started!")
     return redirect(url_for('dashboard'))
 
+@app.route('/handle-task-delete', methods=['GET'])
+@authenticated
+def handle_task_delete():
+    flash("SORRY, not implemented!")
+    return 'OK'
 
 class EndpointStatus(Enum):
     UNSET = -2              # User does not specify an endpoint

@@ -7,7 +7,7 @@
 
   <div class="container">
     <div class="page-header">
-      <h1>Federation Information</h1>
+      <h1>Federation Information Copy Page</h1>
     </div>
     
     <h2 class="anchored" data-anchor-id="endpoint-info-title">Endpoint Information</h2>
@@ -54,6 +54,10 @@
 
     <h2 class="anchored" data-anchor-id="exp-info-title">Experiment Information</h2>
     <section id="experiment-information" class="level4">
+      <div class="button-container float-end">
+        <button disabled id="experiment-delete" data-toggle="modal" data-target="#deleteModal" onclick="clickDelete()">Delete</button>
+        <button disabled id="experiment-compare" onclick="clickCompare()">Compare</button>
+      </div>
       <div class="cell" data-execution_count="30">
         <div class="cell-output cell-output-display" data-execution_count="825">
           <div class="container first-container col-sm-12 pull-left">
@@ -72,7 +76,9 @@
               <tbody>
                 {%for i in range(task_ids|length)%}
                 <tr>
-                  <td>{{task_names[i]}}</td>
+                  <td>
+                    <input type="checkbox" name="item_checkbox" value="{{ task_ids[i] }}" task-name="{{task_names[i]}}">&nbsp;{{task_names[i]}}
+                  </td>
                   <td>{{task_ids[i]}}</td>
                   <td id="task_{{task_ids[i]}}_status"></td>
                   <td id="task_{{task_ids[i]}}_configfile">
@@ -175,11 +181,122 @@
 
   </div> <!-- container -->
 
+  <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title" id="deleteModalLabel">Delete Experiments</h3>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          You are going to delete the following experiments:
+          <br>
+          <div id="deleteItemList">
+          </div>
+          <br>
+          To Confirm the deletion, print enter <em>delete</em> in the text input field.
+          <input type="text" id="deleteConfirmForm" class="form-control" placeholder="delete" required="required" tabindex="1">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="deleteConfirmBtn" data-dismiss="modal" disabled onclick="handleTaskDeletion()">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
+    // Script for updating selected tasks
+    var selectedItems     = []
+    var selectedTaskNames = []
+    var group_id = "{{ server_group_id }}";
+
+    $('input[name="item_checkbox"]').on('change', function() {
+      // Update the selected item information
+      if ($(this).is(':checked')) {
+        selectedItems.push($(this).val());
+        selectedTaskNames.push($(this)[0].getAttribute('task-name'));
+      } else {
+        selectedItems.splice(selectedItems.indexOf($(this).val()), 1);
+        selectedTaskNames.splice(selectedTaskNames.indexOf($(this)[0].getAttribute('task-name')), 1);
+      }
+      
+      // Change the status of the action buttons according to the number of selected items
+      if (selectedItems.length == 0) {
+        document.getElementById("experiment-delete").disabled = true;
+        document.getElementById("experiment-compare").disabled = true;
+      }
+      else if (selectedItems.length == 1) {
+        document.getElementById("experiment-delete").disabled = false;
+        document.getElementById("experiment-compare").disabled = true;
+      }
+      else {
+        document.getElementById("experiment-delete").disabled = false;
+        document.getElementById("experiment-compare").disabled = false;
+      }
+    });
+
+    // Compare the selected experiments
+    function clickCompare() {
+      // Convert task_ids array to a string with comma-separated ids
+      var task_ids_string = selectedItems.join(',');
+
+      // Generate URL
+      var url = '/download/comp_report/' + group_id + '?task_ids=' + task_ids_string;
+
+      var newWindow = window.open(url);
+    }
+
+    // Display the selected tasks in a modal for user confirmation
+    function clickDelete() {
+      var listHtml = "";
+      for (var i = 0; i < selectedTaskNames.length; i++) {
+        listHtml += `<li>${selectedTaskNames[i]}</li>`;
+      }
+      document.getElementById("deleteItemList").innerHTML = listHtml;
+      document.getElementById("deleteConfirmForm").value = "";
+      document.getElementById("deleteConfirmBtn").disabled = true;
+    }
+
+    // Change the status of the display button
+    $('#deleteConfirmForm').on('input', function() {
+      if ($(this).val() == 'delete') {
+        document.getElementById("deleteConfirmBtn").disabled = false;
+      }
+      else {
+        document.getElementById("deleteConfirmBtn").disabled = true;
+      }
+    });
+
+    // Handle the deletion of tasks
+    function handleTaskDeletion() {
+      // Check again: the user has confirmed the deletion & at least one selected task
+      var confirmInfo = document.getElementById("deleteConfirmForm").value;
+      if (confirmInfo != 'delete' || selectedItems.length == 0) {
+        console.log("Invalid Delete!")
+        return;
+      }
+      console.log("Valid Delete!")
+      $.ajax({
+        url: '/handle-task-delete',
+        method: 'GET',
+        data: {},
+        success: function(resp){
+          console.log('DELETED')
+        }
+      })
+      // TODO: Write the backend for this using ajax
+    }
+
+    // Disable the back button after clicking it
     function disableBackButton() {
       document.getElementById('server-info-page-back-btn').disabled = true;
       window.location.href='{{ url_for( 'dashboard') }}';
     }
+
+    // Check the endpoint status
     $(document).ready(function() {
       $(function () {
         $('[data-toggle="popover"]').popover()
@@ -197,7 +314,6 @@
         data: {task_arns: sent_arns},
         success: function(resp){
           var task_ids = Object.keys(resp);
-          console.log(Object.keys(resp));
           for (var i = 0; i < task_ids.length; i++) {
             document.getElementById(`task_${task_ids[i]}_status`).innerHTML = resp[task_ids[i]]['status'];
           }
@@ -225,7 +341,6 @@
         data: {endpoints: sent_data},
         contentType: 'multipart/form-data',
         success: function(resp){
-          console.log(Object.keys(resp))
           var endpoints = Object.keys(resp);
           for (var i = 0; i < endpoints.length; i++) {
             if (resp[endpoints[i]] == '0') {
