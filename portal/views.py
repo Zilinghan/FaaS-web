@@ -337,7 +337,7 @@ def browse_info(server_group_id=None, client_group_id=None):
         task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
         server_group = gc.get_group(server_group_id, include=["memberships"])
         client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id, server_id)
-        return render_template('server_info_cp.jinja2', \
+        return render_template('server_info.jinja2', \
                                 server_group_id=server_group_id, \
                                 client_names=client_names, \
                                 client_endpoints=client_endpoints, \
