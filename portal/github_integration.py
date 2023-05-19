@@ -150,9 +150,3 @@ def selected_branch(repo_owner, repo_name, branch_name, path):
         # Handle errors
         print("=================", files_response)
         return "Error occurred."
-
-
-@github_bp.route("/selected_file/<repo_name>/<path:file_path>")
-def selected_file(repo_name, file_path):
-    return jsonify(file_path)  # Return the file path as JSON
-
