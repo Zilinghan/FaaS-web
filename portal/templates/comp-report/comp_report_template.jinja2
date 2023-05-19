@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="generator" content="quarto-1.2.313">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <link rel="stylesheet" type="text/css" href="{{url_for('static', filename='css/report.css')}}">
+    <!-- Include Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <title>{{tab_title}}</title>
+  </head>
+
+  <body>
+    <div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+      
+      <!-- TODO: Add the sidebar after the design -->
+
+      <main class="content" id="quarto-document-content">
+
+        <header id="title-block-header" class="quarto-title-block default">
+          <div class="quarto-title">
+            <h1 style="border-bottom: 1px solid #eee;">{{report_title}}</h1>
+          </div>
+          <button onclick="window.print();" class="print-hide">Print as PDF</button>
+          <div class="quarto-title-meta">
+            <table>
+              <thead>
+                <tr>
+                  <th class="blank level0"> </th>
+                  <th class="col_heading level0 col0"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th class="row_heading level0 row0">Group Name: &nbsp;&nbsp;</th>
+                  <td class="data row0 col0">{{hp_data_list[0].group_name}}</td>
+                </tr>
+                <tr>
+                  <th class="row_heading level0 row1">Selected Experiments: &nbsp;&nbsp;</th>
+                  <td class="data row1 col0">
+                    {% for hp in hp_data_list %}
+                        <span>{{ hp.exp_name }}</span>&nbsp;&nbsp;
+                    {% endfor %}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </header>
+
+        {# Section 1: Training Hyperparameters #}
+        {%if hp_data_list%}
+        <section id="federated-learning-hyperparameters" class="level2">
+            <h2 class="anchored" data-anchor-id="hyperparameters">Training Hyperparameters</h2>
+            <section id="hyperparameters" class="level4">
+                <div class="cell" data-execution_count="30">
+                    <div class="cell-output cell-output-display" data-execution_count="825">
+                        <div class="container first-container col-sm-12 pull-left">
+                            <table class="dataframe table table-sm table-striped">
+                                <thead>
+                                    <tr>
+                                        <th></th>
+                                        <th>Hyperparameter</th>
+                                        {% for hp_data in hp_data_list %}
+                                            <th>{{ hp_data.exp_name }}</th>
+                                        {% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Federation Algorithm</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{{ hp_data.fed_alg }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Global training epochs</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{{ hp_data.server_epoch }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Local training epochs</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{{ hp_data.client_epoch }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Privacy budget</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{{ hp_data.privacy_budget }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Clip value</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{{ hp_data.clip_value }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Clip norm</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{{ hp_data.clip_norm }}</td>
+                                        {% endfor %}
+                                    </tr>
+
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Model type</td>
+                                        {% for hp_data in hp_data_list %}
+                                        <td>
+                                            {% if hp_data.model_type %}
+                                            {{ hp_data.model_type }}
+                                            <table class="table table-striped">
+                                                <thead>
+                                                <tr>
+                                                    <th>Model parameter</th>
+                                                    <th>Value</th>
+                                                </tr>
+                                                </thead>
+                                                <tbody>
+                                                {% for param, val in hp_data.model_params.items() %}
+                                                <tr>
+                                                    <td>{{ param }}</td>
+                                                    <td>{{ val }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                                </tbody>
+                                            </table>
+                                            {% else %}
+                                            N/A
+                                            {% endif %}
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+                                    
+                                    
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Server learning rate</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{%if hp_data.server_lr%}{{ hp_data.server_lr }}{% else %}-{%endif%}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    
+                                    
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Server momentum</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{%if hp_data.server_mom%}{{ hp_data.server_mom }}{% else %}-{%endif%}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    
+                                    
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Server adapt parameter</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{%if hp_data.server_adapt%}{{ hp_data.server_adapt }}{% else %}-{%endif%}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    
+                                    
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Server var momentem</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{%if hp_data.server_var_mom%}{{ hp_data.server_var_mom }}{% else %}-{%endif%}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    
+                                    
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Server mixing parameter</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{%if hp_data.server_mix_param%}{{ hp_data.server_mix_param }}{% else %}-{%endif%}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    
+                                    
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Regularization strength</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{%if hp_data.reg_strength%}{{ hp_data.reg_strength }}{% else %}-{%endif%}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    
+                                    
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Staleness function</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{%if hp_data.staleness_func%}{{ hp_data.staleness_func }}{% else %}-{%endif%}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    
+                                    
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Parameter a</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{%if hp_data.parameter_a%}{{ hp_data.parameter_a }}{% else %}-{%endif%}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    
+                                    
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Parameter b</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{%if hp_data.parameter_b%}{{ hp_data.parameter_b }}{% else %}-{%endif%}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Optimizer</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{{ hp_data.optimizer }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Learning rate</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{{ hp_data.lr }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Learning rate decay</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{{ hp_data.lr_decay }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    <tr class="sub-container">
+                                        <td></td>
+                                        <td>Client weights</td>
+                                        {% for hp_data in hp_data_list %}
+                                            <td>{{ hp_data.client_weights }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </section>
+        {%endif%}
+
+        {# Section 2: Client Validation Results #}
+        {%if client_validation_list %}
+        <section id="federated-learning-site-validation" class="level2" style="page-break-before: always;">
+          <h2 class="anchored" data-anchor-id="site-validation">Sites Validation</h2>
+          <span class="info-exploder" style="cursor: pointer; color:#6C757D;">▶ &nbsp;Click here to expand explanations:</span>
+          <div style="display: none;" class="hide">
+            <p style="margin: 0.5% 0;">This section has detailed site validation metrics for the federated learning.</p>
+            <ul style="list-style: disc;">
+              <li><b>endpoint</b>–Name of the endpoint doing the training</li>
+              <li><b>step</b>–Index of the global training step (starting from 0).</li>
+              <li><b>loss</b>–Local validation loss for the certain endpoint.</li>
+              <li><b>accuracy</b>–Local validation accuracy for the certain endpoint.</li>
+            </ul>
+          </div>
+          <br><br>
+          <section id="site-validation" class="level4">
+            <div class="cell" data-execution_count="30">
+                <div id="client-validation-plot"></div>
+            </div>
+          </section>
+        </section>
+        {%endif%}
+
+        {# Section 3: Server Validation #}
+        {%if server_validation_list%}
+        <section id="federated-learning-server-validation" class="level2" style="page-break-before: always;">
+          <h2 class="anchored" data-anchor-id="server-validation">Server Validation</h2>
+          <span class="info-exploder" style="cursor: pointer; color:#6C757D;">▶ &nbsp;Click here to expand explanations:</span>
+          <div style="display: none;" class="hide print-expand">
+            <p style="margin: 0.5% 0;">This section has detailed server validation metrics for the federated learning.</p>
+            <ul style="list-style: disc;">
+              <li><b>step</b>–Index of the global training step (starting from 1).</li>
+              <li><b>loss</b>–Local validation loss for the server.</li>
+              <li><b>accuracy</b>–Local validation accuracy for the server.</li>
+            </ul>
+          </div>
+          <br><br>
+          <section id="server-validation" class="level4">
+            <div id="server-validation-plot" class="cell" data-execution_count="30"></div>
+          </section>
+        </section>
+        {%endif%}
+
+        {# Section 5: Client Test: TODO #}
+
+        {# Section 6: Server Test: TODO #}
+
+      </main>
+
+        <script>
+        hp_data_list = JSON.parse('{{ hp_data_list_json | safe }}');
+        exp_names = []
+        hp_data_list.forEach(function(item) {
+            exp_names.push(item.exp_name)
+        })
+
+        // Plot client validation loss and accuracy versus step
+        var clientValidationDataList = JSON.parse('{{ client_validation_list | safe }}');
+        console.log(clientValidationDataList)
+
+        clientValidationDataList.forEach(function(clientValidationData, index) {
+            // A dictionary to hold data for each endpoint
+            var endpointData = {};
+
+            // Loop through the client validation data
+            clientValidationData.forEach(function(item) {
+                // If this is the first time we've seen this endpoint,
+                // initialize an empty object for it in our dictionary
+                if (!endpointData.hasOwnProperty(item.endpoint)) {
+                    endpointData[item.endpoint] = {
+                        steps: [],
+                        accuracy: [],
+                        loss: []
+                    };
+                }
+
+                // Add the data for this record to the appropriate endpoint
+                endpointData[item.endpoint].steps.push(item.step);
+                endpointData[item.endpoint].accuracy.push(item.accuracy);
+                endpointData[item.endpoint].loss.push(item.loss);
+            });
+
+            // Initialize empty data arrays for the two plots
+            var accuracyData = [];
+            var lossData = [];
+
+            // Loop through the endpoint data
+            for (var endpoint in endpointData) {
+                if (endpointData.hasOwnProperty(endpoint)) {
+                    // Create a data series for this endpoint's accuracy
+                    var accuracySeries = {
+                        x: endpointData[endpoint].steps,
+                        y: endpointData[endpoint].accuracy,
+                        mode: 'lines',
+                        name: endpoint
+                    };
+
+                    // Add the accuracy series to the accuracy data
+                    accuracyData.push(accuracySeries);
+
+                    // Create a data series for this endpoint's loss
+                    var lossSeries = {
+                        x: endpointData[endpoint].steps,
+                        y: endpointData[endpoint].loss,
+                        mode: 'lines',
+                        name: endpoint
+                    };
+
+                    // Add the loss series to the loss data
+                    lossData.push(lossSeries);
+                }
+            }
+
+            // Add divs 
+            var plotDiv = document.createElement("div");
+            plotDiv.style.display = "flex";
+
+            var accuracyPlotDiv = document.createElement("div");
+            var lossPlotDiv = document.createElement("div");
+            accuracyPlotDiv.style.width = "48%";
+            lossPlotDiv.style.width = "53%";
+            lossPlotDiv.style.marginLeft = "-60px";
+
+            accuracyPlotDiv.setAttribute("id", "client-validation-accuracy-plot-" + index)
+            lossPlotDiv.setAttribute("id", "client-validation-loss-plot-" + index)
+
+            plotDiv.appendChild(accuracyPlotDiv);
+            plotDiv.appendChild(lossPlotDiv)
+
+            let parentDiv = document.getElementById("client-validation-plot");
+            var titleDiv = document.createElement("h5");
+            titleDiv.innerText = exp_names[index];
+            parentDiv.appendChild(titleDiv);
+            parentDiv.appendChild(plotDiv);
+
+            // Create the Plotly plots
+            Plotly.newPlot('client-validation-accuracy-plot-' + index, accuracyData, {title: 'Accuracy vs. Step', showlegend: false});
+            Plotly.newPlot('client-validation-loss-plot-' + index, lossData, {title: 'Loss vs. Step'});
+        });
+
+        
+
+        // Plot server validation loss and accuracy versus step
+        var serverValidationDataList = JSON.parse('{{ server_validation_list | safe }}');
+
+        var clientAccuracyData = [];
+        var clientLossData = [];
+
+        serverValidationDataList.forEach(function(serverValidationData, index) {
+            var steps = [];
+            var accuracy = [];
+            var loss = [];
+
+            serverValidationData.forEach(function(item) {
+                steps.push(item.step);
+                accuracy.push(item.accuracy);
+                loss.push(item.loss);
+            });
+
+            // Define trace for accuracy
+            var trace1 = {
+                x: steps,
+                y: accuracy,
+                mode: 'lines',
+                name: exp_names[index]
+            };
+
+            // Define trace for loss
+            var trace2 = {
+                x: steps,
+                y: loss,
+                mode: 'lines',
+                name: exp_names[index]
+            };
+
+            // Combine traces
+            clientAccuracyData.push(trace1);
+            clientLossData.push(trace2);
+        });
+
+        // Add a div
+        var accuracyPlotDiv = document.createElement("div");
+        var lossPlotDiv = document.createElement("div");
+        accuracyPlotDiv.style.width = "95%";
+        lossPlotDiv.style.width = "95%";
+        accuracyPlotDiv.setAttribute("id", "server-validatioin-accuracy-plot")
+        lossPlotDiv.setAttribute("id", "server-validatioin-loss-plot")
+
+        let parentDiv = document.getElementById("server-validation-plot");
+        parentDiv.appendChild(accuracyPlotDiv);
+        parentDiv.appendChild(lossPlotDiv);
+
+        // Define layout
+        var layout = {
+            title: 'Accuracy and Loss vs Steps',
+            xaxis: {title: 'Steps'},
+            yaxis: {title: 'Value'}
+        };
+
+        // Create the plot
+        Plotly.newPlot('server-validatioin-accuracy-plot', clientAccuracyData, {
+            title: 'Accuracy vs Steps',
+            xaxis: {title: 'Steps'},
+            yaxis: {title: 'Value'}
+        });
+        Plotly.newPlot('server-validatioin-loss-plot', clientLossData, {
+            title: 'Loss vs Steps',
+            xaxis: {title: 'Steps'},
+            yaxis: {title: 'Value'}
+        });
+
+
+
+        $(".exploder").click(function(){
+            $(this).closest("tr").next("tr").toggleClass("hide");
+            
+            if($(this).closest("tr").next("tr").hasClass("hide")){
+            $(this)[0].innerHTML = "▶ &nbsp;";
+            $(this).closest("tr").next("tr").children("td").slideUp();
+            }
+            else{
+            $(this)[0].innerHTML = "▼ &nbsp;";
+            $(this).closest("tr").next("tr").children("td").slideDown(350);
+            }
+        });
+
+        $(".info-exploder").click(function(){
+            $(this).next("div").toggleClass("hide");
+            if ($(this).next("div").hasClass("hide")) {
+            $(this)[0].innerHTML = "▶ &nbsp;Click here to expand explanations:";
+            $(this).next("div").slideUp();
+            }
+            else{
+            $(this)[0].innerHTML = "▼ &nbsp;Click here to expand explanations:";
+            $(this).next("div").slideDown();
+            }
+        })
+
+        function beforePrint() {
+            // Get all elements with class 'exploder'
+            var exploders = document.getElementsByClassName('exploder');
+
+            // Loop through each element in the list
+            for (var i = 0; i < exploders.length; i++) {
+            // Get the current element in the loop
+            var currentExploder = exploders[i];
+
+            // Check if the closest 'tr' element's next sibling has class 'hide'
+            if ($(currentExploder).closest("tr").next("tr").hasClass("hide")) {
+                // Unhide the exploder
+                $(currentExploder).closest("tr").next("tr").toggleClass("hide");
+                // Update the HTML of the current element
+                currentExploder.innerHTML = "▼ &nbsp;";
+                // Slide down the children of the next 'td' element
+                $(currentExploder).closest("tr").next("tr").children("td").slideDown(350);
+            }
+            }
+
+            // Get all elements with class 'info-exploder'
+            var infoExploders = document.getElementsByClassName('info-exploder');
+
+            // Loop through each element in the list
+            for (var i = 0; i < infoExploders.length; i++) {
+            // Get the current element in the loop
+            var currentInfoExploder = infoExploders[i];
+
+            // Check if the closest 'tr' element's next sibling has class 'hide'
+            if ($(currentInfoExploder).next("div").hasClass("hide")) {
+                // Unhide the exploder
+                $(currentInfoExploder).next("div").toggleClass("hide");
+                // Update the HTML of the current element
+                currentInfoExploder.innerHTML = "▼ &nbsp;Click here to expand explanations:";
+                // Slide down the children of the next 'td' element
+                $(currentInfoExploder).next("div").slideDown();
+            }
+            }
+        }
+        window.onbeforeprint = beforePrint;
+        </script>
+    </div>
+  </body>
+</html>
