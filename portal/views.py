@@ -20,6 +20,11 @@ from portal.utils import (get_portal_tokens, get_safe_redirect, group_tagging, g
                           ecs_run_task, ecs_task_status, ecs_arn2id, ecs_parse_taskinfo, \
                           dynamodb_get_tasks, dynamodb_append_task, get_funcx_client, aws_get_log, \
                           training_data_preprocessing, val_test_data_preprocessing, hp_data_preprocessing)
+from portal.github_integration import github_bp
+import base64
+
+app.register_blueprint(github_bp, url_prefix='/github_integration')
+
 try:
     from urllib.parse import urlencode
 except ImportError:
@@ -292,6 +297,9 @@ def browse_config(server_group_id=None, client_group_id=None):
         Note: two inputs are mutually exclusive
     """
     gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    client_id = app.config['GITHUB_CLIENT_ID']
+    redirect_uri =app.config['GITHUB_REDIRECT_URI']
+    auth_url = f"https://github.com/login/oauth/authorize?client_id={client_id}&scope=repo&redirect_uri={redirect_uri}"
     
     if server_group_id is not None:
         server_info = gc.get_group(server_group_id, include=['my_memberships'])['my_memberships'][0]
@@ -303,7 +311,8 @@ def browse_config(server_group_id=None, client_group_id=None):
                                client_names=client_names, \
                                client_endpoints=client_endpoints, \
                                client_emails=client_emails, \
-                               client_orgs=client_orgs)
+                               client_orgs=client_orgs, \
+                               auth_url=auth_url)
     if client_group_id is not None:
         client_group = gc.get_group(client_group_id)
         return render_template('client.jinja2', client_group=client_group, client_group_id=client_group_id)
@@ -339,6 +348,80 @@ def browse_info(server_group_id=None, client_group_id=None):
                                 task_names=task_names)
     if client_group_id is not None:
         return render_template('client_info.jinja2', client_group_id=client_group_id)
+
+@app.route('/download/comp_report/<group_id>', methods=['GET'])
+def download_comp_report(group_id=None):
+    task_ids = request.args.get('task_ids')
+    # task_ids is a string of comma-separated ids, split it into a list
+    task_ids = task_ids.split(',')
+    gc      = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    my_info = gc.get_group(group_id, include=['my_memberships'])['my_memberships'][0]
+    group_name_raw = gc.get_group(group_id)["name"]
+    group_name = group_name_raw[:-len(FL_TAG)]
+    user_id = my_info['identity_id']
+    if group_id is not None:
+        training_data_list = []
+        client_validation_list = []
+        server_validation_list = []
+        client_test_list = []
+        server_test_list = []
+        hp_data_list = []
+        for task_id in task_ids:
+            config_key      = f'{group_id}/{user_id}/{task_id}/appfl_config.yaml'
+            train_key       = f'{group_id}/{user_id}/{task_id}/log_funcx.yaml'
+            eval_key        = f'{group_id}/{user_id}/{task_id}/log_eval.json'
+            download_folder = os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id, task_id)
+            if s3_download(S3_BUCKET_NAME, config_key, download_folder, 'appfl_config.yaml') and \
+               s3_download(S3_BUCKET_NAME, train_key, download_folder, 'log_funcx.yaml') and \
+               s3_download(S3_BUCKET_NAME, eval_key, download_folder, 'log_eval.json'):
+                # Load the training metrics
+                with open(os.path.join(download_folder, 'log_funcx.yaml')) as f:
+                    training_data = yaml.safe_load(f)
+                training_data = training_data_preprocessing(training_data)
+
+                # Load the validation and test results
+                with open(os.path.join(download_folder, 'log_eval.json')) as f:
+                    val_test_data = json.load(f)
+                client_validation, server_validation, client_test, server_test = val_test_data_preprocessing(val_test_data)
+
+                # Load the training hyperparameters
+                with open(os.path.join(download_folder, 'appfl_config.yaml')) as f:
+                    hp_data = yaml.safe_load(f)
+                hp_data = hp_data_preprocessing(hp_data)
+
+                hp_data["group_name"] = group_name
+
+                # Add to the list
+                training_data_list.append(training_data)
+                client_validation_list.append(client_validation)
+                server_validation_list.append(server_validation)
+                client_test_list.append(client_test)
+                server_test_list.append(server_test)
+                hp_data_list.append(hp_data)
+
+                # Clean the downloaded files
+                os.remove(os.path.join(download_folder, 'log_funcx.yaml'))
+                os.remove(os.path.join(download_folder, 'log_eval.json'))
+                os.remove(os.path.join(download_folder, 'appfl_config.yaml'))
+                
+            else:
+                flash("There is no report for this federation!")
+                return redirect(request.referrer)
+            
+        return render_template('comp-report/comp_report.jinja2', 
+                                tab_title='Federation Comparison Report',
+                                report_title='Federation Comparison Report',
+                                training_data_list=json.dumps(training_data_list), 
+                                client_validation_list=json.dumps(client_validation_list), 
+                                server_validation_list=json.dumps(server_validation_list),
+                                client_test_list=json.dumps(client_test_list),
+                                server_test_list=json.dumps(server_test_list),
+                                hp_data_list=hp_data_list,
+                                hp_data_list_json=json.dumps(hp_data_list))
+    else:
+        flash("Sorry, this function is still not implemented!")
+        return redirect(request.referrer)
+
 
 @app.route('/download/<file_type>/<group_id>', methods=['GET'])
 @app.route('/download/<file_type>/<group_id>/<task_id>', methods=['GET'])
@@ -723,12 +806,49 @@ def load_server_config(form, server_group_id):
             flash(f"Error {error_count}: Input height must be positive!")
     # If user uploads a custom model
     else:
-        upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id)
-        if not os.path.exists(upload_folder):
-            os.makedirs(upload_folder)
-        model_file = request.files['custom-model-file']
-        model_file_fp = os.path.join(upload_folder, 'model.py')
-        model_file.save(model_file_fp)
+        if form['model-type'] == 'custom':
+            upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id)
+            if not os.path.exists(upload_folder):
+                os.makedirs(upload_folder)
+            model_file = request.files['custom-model-file']
+            model_file_fp = os.path.join(upload_folder, 'model.py')
+            model_file.save(model_file_fp)
+        elif form['model-type'] == 'github':
+            # Handle GitHub file selection here
+            upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id)
+            access_token = session.get('access_token')
+            repo_name = form.get('github-repo-name') 
+            branch = form.get('github-branch') 
+            file_path = form.get('github-file-path') 
+
+            # Make a request to the GitHub API to get the file's contents
+            file_response = requests.get(
+                f"https://api.github.com/repos/{session.get('username')}/{repo_name}/contents/{file_path}?ref={branch}",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/vnd.github.v3+json"
+                }
+            )
+
+            if file_response.status_code == 200:
+                # Extract the file data from the response
+                file_data = file_response.json()
+
+                # Decode the base64 content without decoding it to a string
+                file_content = base64.b64decode(file_data['content'])
+
+                # Open the file in binary mode to write
+                model_file_fp = os.path.join(upload_folder, 'model.py')
+                with open(model_file_fp, "wb") as f:
+                    f.write(file_content)
+                print("==================upload from github success!====================")
+            else:
+                # Handle errors
+                print("====================upload from github error====================")
+                return "Error occurred."
+        
+        
+        
         model_key = f'{server_group_id}/{server_id}/model.py'
         
         # Upload the model file to AWS S3
@@ -738,7 +858,7 @@ def load_server_config(form, server_group_id):
             error_count += 1
 
     if error_count > 0:
-        return error_count, None
+        return error_count, None, None
 
     # TODO: How to deal with this log file if we move things to cloud (data to S3, and probably the running in a container)
     server_log_dir = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id, 'logs')
@@ -842,21 +962,21 @@ def upload_server_config(server_group_id, run='True'):
         group_members_str += ','
     group_members_str = group_members_str[:-1]
 
-    # # Test Code
-    # task_id = 'randomid'
-    # appfl_config_key = f'{server_group_id}/{server_id}/{task_id}/appfl_config.yaml'
-    # appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')
-    # if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
-    #     flash("Error: The configuration file is not uploaded successfully!")
-    #     return redirect(request.referrer)
-    # print(f'Group members: {group_members_str}')
-    # print(f'Server ID: {server_id}')
-    # print(f'Group ID: {server_group_id}')
-    # print(f'Upload folder: {app.config["UPLOAD_FOLDER"]}')
-    # print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
-    # print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
-    # print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
-    # return redirect(url_for('dashboard'))
+    # Test Code
+    task_id = 'randomid'
+    appfl_config_key = f'{server_group_id}/{server_id}/{task_id}/appfl_config.yaml'
+    appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')
+    if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
+        flash("Error: The configuration file is not uploaded successfully!")
+        return redirect(request.referrer)
+    print(f'Group members: {group_members_str}')
+    print(f'Server ID: {server_id}')
+    print(f'Group ID: {server_group_id}')
+    print(f'Upload folder: {app.config["UPLOAD_FOLDER"]}')
+    print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
+    print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
+    print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
+    return redirect(url_for('dashboard'))
 
     # Those parameters should be passed to the container
     task_arn = ecs_run_task([group_members_str, 
@@ -882,6 +1002,11 @@ def upload_server_config(server_group_id, run='True'):
     # flash("The federation is started!")
     return redirect(url_for('dashboard'))
 
+@app.route('/handle-task-delete', methods=['GET'])
+@authenticated
+def handle_task_delete():
+    flash("SORRY, not implemented!")
+    return 'OK'
 
 class EndpointStatus(Enum):
     UNSET = -2              # User does not specify an endpoint

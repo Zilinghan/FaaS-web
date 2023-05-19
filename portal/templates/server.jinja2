@@ -2,6 +2,14 @@
 
 {%block title%}Fed Config{%endblock%}
 
+<head>
+    <!-- Include Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <!-- Include jQuery -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <!-- Include Bootstrap JS -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+</head>
 
 {%block body%}
   {%include "header.jinja2"%}
@@ -185,8 +193,11 @@
             <label style="margin-right:10%">
             <input type="radio" name="model-type" value="template" checked> Template Model
             </label>
-            <label>
+            <label style="margin-right:10%">
             <input type="radio" name="model-type" value="custom"> Custom Model
+            </label>
+            <label>
+            <input type="radio" name="model-type" value="github"> Upload from Github
             </label>
           </div>
           {% set models = ['CNN']%}
@@ -226,6 +237,52 @@
                 placeholder="model.py"
                 accept=".py"
               >
+            </div>
+          </div>
+
+          <div id="github-models" style="display:none">
+            <div class="form-group">
+                <label for="github-repo-name">Repository</label>
+                <input type="text" id="github-repo-name" name="github-repo-name" readonly class="form-control" placeholder="No repository selected">
+            </div>
+
+            <div class="form-group">
+                <label for="github-branch">Branch</label>
+                <input type="text" id="github-branch" name="github-branch" readonly class="form-control" placeholder="No branch selected">
+            </div>
+
+            <div class="form-group">
+                <label for="github-file-path">File</label>
+                <input type="text" id="github-file-path" name="github-file-path" readonly class="form-control" placeholder="No file selected">
+            </div>
+
+            <button type="button" class="btn btn-secondary" data-toggle="modal" data-target="#githubModal">
+              Select File
+            </button>
+          </div>
+
+
+          <!-- Create the modal -->
+          <div class="modal fade" id="githubModal" tabindex="-1" role="dialog" aria-labelledby="githubModalLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                <h4 class="modal-title" id="githubModalLabel">Select File</h4>
+                <input type="text" id="searchInput" style="margin-top:15px" onkeyup="searchFiles()" placeholder="Search for ...">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+                </button>
+                <div style="position:absolute; right:50px; top:15px;">
+                  <a href="#" onclick="return openAndWatchWindow()" style="margin-top:10px" class="btn btn-link" target="_blank">Authorize with GitHub</a>
+                </div>
+              </div>
+                <div class="list-group" id="githubModalBody">
+                  <!-- The repositories will be loaded here -->
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" onclick="goBack();">Back</button>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -281,6 +338,199 @@
   </div> <!-- container -->
 
   <script>
+    // Keep track of the path history to go back to previous folder in Github
+    var pathStack = [];
+
+    // RepoState class
+    class RepoState {
+      constructor() {
+      }
+    }
+
+    // BranchState class
+    class BranchState {
+      constructor(owner, repoName) {
+        this.owner = owner;
+        this.repoName = repoName;
+      }
+    }
+
+    // PathState class
+    class PathState {
+      constructor(owner, repoName, branchName, path) {
+        this.owner = owner;
+        this.repoName = repoName;
+        this.branchName = branchName;
+        this.path = path;
+      }
+    }
+
+    // Bind to the back button in the modal
+    function goBack() {
+        if (pathStack.length === 1) {
+            $('#githubModal').modal('hide'); // Close the modal
+            return;
+        }
+        pathStack.pop();  // Remove the current state
+        var lastState = pathStack[pathStack.length - 1];  // Get the last state
+        if (lastState instanceof RepoState) {
+            getRepos(true);
+        } else if (lastState instanceof BranchState) {
+            getRepoBranches(lastState.owner, lastState.repoName, true);
+        } else if (lastState instanceof PathState) {
+            getRepoFiles(lastState.owner, lastState.repoName, lastState.branchName, lastState.path, true);
+        }
+    }
+
+    $('#githubModal').on('show.bs.modal', () => getRepos(false));
+    $('#githubModal').on('hide.bs.modal', function (event) {
+        $("#githubModalBody").empty();
+        pathStack = [];
+    });
+
+    function openAndWatchWindow() {
+        var newWindow = window.open('{{ auth_url }}', 'newwindow', 'width=600,height=600');
+
+        var checkWindowClosed = setInterval(function() {
+            if (newWindow.closed) {
+                clearInterval(checkWindowClosed);
+                getRepos(false);
+            }
+        }, 500);  // Check every 500 ms
+
+        return false;
+    }
+
+    var reposArray = [];
+    var branchesArray = [];
+    var filesArray = [];
+
+    function searchFiles() {
+        var query = document.getElementById('searchInput').value.toUpperCase();
+        var filteredArray = [];
+
+        var lastState = pathStack[pathStack.length - 1];  // Get the last state
+        if (lastState instanceof RepoState) {
+            filteredArray = reposArray.filter(function(repo) {
+              return repo.name.toUpperCase().includes(query);
+            });
+            displayRepos(filteredArray);
+        } else if (lastState instanceof BranchState) {
+            filteredArray = branchesArray.filter(function(branch) {
+              return branch.name.toUpperCase().includes(query);
+            });
+            displayBranches(lastState.owner, lastState.repoName, filteredArray);
+        } else if (lastState instanceof PathState) {
+            filteredArray = filesArray.filter(function(file) {
+              return file.name.toUpperCase().includes(query);
+            });
+            displayFiles(lastState.owner, lastState.repoName, lastState.branchName, lastState.path, filteredArray);
+        }
+    }
+
+    function getRepos(back = false) {
+        // Check if 'back' is an event object and if so, default it to false
+        if (typeof back === 'object' && back instanceof Event) {
+            back = false;
+        }
+        if (back === false) {
+            var repoState = new RepoState();
+            pathStack.push(repoState);
+        }
+
+        // Make an AJAX request to get the repositories
+        $.get("/github_integration/github_callback", function(data){
+            reposArray = data;
+            displayRepos(data);
+        });
+    }
+
+    function displayRepos(data) {
+        // Clear the modal body
+        $("#githubModalBody").empty();
+
+        // No repos are fetched
+        if (typeof data == "string") {
+          return;
+        }
+
+        // Add each repository to the modal body
+        $.each(data, function(index, repo) {
+            $("#githubModalBody").append(`
+                <a href="#" class="list-group-item list-group-item-action" onclick="getRepoBranches('${repo.owner.login}', '${repo.name}');">${repo.name}</a>
+            `);
+        });
+    }
+
+    function getRepoBranches(owner, repoName, back = false) {
+        if (back === false) {
+            var branchState = new BranchState(owner, repoName);
+            pathStack.push(branchState);
+        }
+
+        // Make an AJAX request to get the repository branches
+        $.get(`/github_integration/selected_repo/${owner}/${repoName}/branches`, function(data){
+            branchesArray = data;
+            displayBranches(owner, repoName, data);
+        });
+    }
+
+    function displayBranches(owner, repoName, data) {
+        // Clear the modal body
+        $("#githubModalBody").empty();
+
+        // Add each branch to the modal body
+        $.each(data, function(index, branch) {
+            $("#githubModalBody").append(`<a href="#" class="list-group-item list-group-item-action" onclick="getRepoFiles('${owner}', '${repoName}', '${branch.name}');">${branch.name}</a>`);
+        });
+    }
+
+    function getRepoFiles(owner, repoName, branchName, path = '', back = false) {
+        if (back === false) {
+            var pathState = new PathState(owner, repoName, branchName, path)
+            pathStack.push(pathState); 
+        }
+
+        // Make an AJAX request to get the repository files
+        $.get(`/github_integration/selected_repo/${owner}/${repoName}/${branchName}/${path}`, function(data){
+            filesArray = data;
+            displayFiles(owner, repoName, branchName, path, data);
+        });
+    }
+
+    function displayFiles(owner, repoName, branchName, path, data) {
+        // Clear the modal body
+        $("#githubModalBody").empty();
+
+        // Iterate over each file in data
+        $.each(data, function(index, file) {
+            // Check if the file is a directory
+            if(file.type == "dir") {
+                // If the file is a directory, add a click handler to the paragraph that will call getRepoFiles
+                var dirElement = $('<a/>')
+                                    .addClass("list-group-item list-group-item-action")
+                                    .attr("href", "#")
+                                    .text(file.name)
+                                    .on('click', function() {
+                                        getRepoFiles(owner, repoName, branchName, file.path);
+                                    });
+                $("#githubModalBody").append(dirElement);
+            } else {
+                // If the file is not a directory, just display its name
+                var fileElement = $('<a/>')
+                                    .addClass("list-group-item list-group-item-action")
+                                    .text(file.name)
+                                    .on('click', function() {
+                                        $("#github-repo-name").val(repoName);
+                                        $("#github-branch").val(branchName);
+                                        $("#github-file-path").val(file.path);
+                                        $('#githubModal').modal('hide');
+                                    });
+                $("#githubModalBody").append(fileElement);
+            }
+        });
+    }
+
     function disableBackButton() {
       document.getElementById('server-config-page-back-btn').disabled = true;
       window.location.href='{{ url_for( 'dashboard') }}';
@@ -345,6 +595,7 @@
         // Display the template model parameter selection div
         document.getElementById('template-models').style.display = "block";
         document.getElementById('custom-models').style.display = "none";
+        document.getElementById('github-models').style.display = "none";
         // Change the input requirements
         const modelParamDiv = document.getElementById("model-params-div");
         const modelParams = modelParamDiv.querySelectorAll("input");
@@ -353,12 +604,14 @@
           modelParams[i].required = true;
         }
         document.getElementById("custom-model-file").required=false;
+        document.getElementById("github-file-path").required=false;
       });
 
       modelTypes[1].addEventListener('click', function(){
         // Display the custome model update div
         document.getElementById('template-models').style.display = "none";
         document.getElementById('custom-models').style.display = "block";
+        document.getElementById('github-models').style.display = "none";
         // Change the input requirements
         const modelParamDiv = document.getElementById("model-params-div");
         const modelParams = modelParamDiv.querySelectorAll("input");        
@@ -367,6 +620,23 @@
           modelParams[i].required = false;
         }
         document.getElementById("custom-model-file").required=true;
+        document.getElementById("github-file-path").required=false;
+      });
+
+      modelTypes[2].addEventListener('click', function(){
+        // Display the custome model update div
+        document.getElementById('template-models').style.display = "none";
+        document.getElementById('custom-models').style.display = "none";
+        document.getElementById('github-models').style.display = "block";
+        // Change the input requirements
+        const modelParamDiv = document.getElementById("model-params-div");
+        const modelParams = modelParamDiv.querySelectorAll("input");        
+        for (let i = 0; i < modelParams.length; i++) {
+          console.log(modelParams[i].required);
+          modelParams[i].required = false;
+        }
+        document.getElementById("custom-model-file").required=false;
+        document.getElementById("github-file-path").required=true;
       });
 
 
