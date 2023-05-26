@@ -25,6 +25,8 @@
     <script type="text/javascript" src="{{url_for('static', filename='js/jquery.min.js')}}"></script>
     <script type="text/javascript" src="{{url_for('static', filename='js/bootstrap.min.js')}}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML"></script> {#support math notations#}
+
+    {% block home_styles %}{% endblock %}
   </head>
   <body>
     <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
@@ -48,6 +50,11 @@
             {%if session.get('is_authenticated')%}
               <li>
                 <a href="{{url_for('dashboard')}}">Dashboard</a>
+              </li>
+              <li class="divider">|</li>
+
+              <li>
+                <a href="https://ppflaas.readthedocs.io/en/latest/">Document</a>
               </li>
               <li class="divider">|</li>
 
