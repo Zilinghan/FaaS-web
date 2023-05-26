@@ -679,8 +679,8 @@ def upload_client_config(client_group_id):
     # TODO: If we change the configurations, please change here on how we read those user inputs
     # Save the client configuration into a YAML file
     client_config = {'client': {}}
-    for param in request.form:
-        client_config['client'][param] = request.form[param]
+    client_config['client']['device'] = request.form['device']
+    client_config['client']['endpoint_id'] = request.form['endpoint_id']
     client_config['client']['output_dir'] = 'output' # the default name for output is output
 
     with open(os.path.join(upload_folder, 'client.yaml'), 'w') as f:
