@@ -1,6 +1,6 @@
 {%extends "base.jinja2"%}
 
-{%block title%}Create Server{%endblock%}
+{%block title%}Create Fed{%endblock%}
 
 {%block body%}
   {%include "header.jinja2"%}
@@ -8,7 +8,7 @@
   <div class="container">
     <div class="row">
       <div class="page-header col-md-6 col-md-offset-3">
-        <h1>Create Server</h1>
+        <h1>Create Federation</h1>
       </div>
       <div class="col-md-6 col-md-offset-3">
         <form role="form" onsubmit="disableSaveButton()" action="{{url_for('create_server')}}" method="POST">
