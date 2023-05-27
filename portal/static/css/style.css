@@ -289,18 +289,6 @@ select {
   color: #4d75a8;
 }
 
-.post-preview > a > .post-title {
-  font-size: 30px;
-  margin-top: 30px;
-  margin-bottom: 10px;
-}
-
-.post-preview > a > .post-subtitle {
-  margin: 0;
-  font-weight: 300;
-  margin-bottom: 10px;
-}
-
 .post-preview > .post-meta {
   color: #808080;
   font-size: 18px;
@@ -319,31 +307,26 @@ select {
   text-decoration: underline;
 }
 
-@media only screen and (min-width: 768px) {
-  .post-preview > a > .post-title {
-    font-size: 36px;
-  }
-}
-
 .post-preview > div {
   color: #404040;
 }
 
-.post-preview > div > .post-title {
+.post-preview > div > .post-title, .post-preview > a > .post-title {
   font-size: 30px;
-  margin-top: 30px;
-  margin-bottom: 10px;
+  margin-top: 20px;
+  margin-bottom: 20px;
 }
 
-.post-preview > div > .post-subtitle {
+.post-preview > div > .post-subtitle, .post-preview > a > .post-subtitle {
   margin: 0;
   font-weight: 300;
-  margin-bottom: 10px;
+  margin-bottom: 15px;
+  font-size: 21px;
 }
 
 @media only screen and (min-width: 768px) {
-  .post-preview > div > .post-title {
-    font-size: 36px;
+  .post-preview > div > .post-title, .post-preview > a > .post-title {
+    font-size: 33px;
   }
 }
 
