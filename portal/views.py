@@ -1003,44 +1003,63 @@ def upload_server_config(server_group_id, run='True'):
         group_members_str += ','
     group_members_str = group_members_str[:-1]
 
-    # Test Code
+    # # Test Code Updated
+    # parameter_dict = {}
+    # parameter_dict['group_members'] = group_members_str
+    # parameter_dict['server_id'] = server_id
+    # parameter_dict['group_id'] = server_group_id
+    # parameter_dict['upload_folder'] = app.config["UPLOAD_FOLDER"]
+    # parameter_dict['funcx_token'] = session['tokens']['funcx_service']['access_token']
+    # parameter_dict['search_token'] = session['tokens']['search.api.globus.org']['access_token']
+    # parameter_dict['openid_token'] = session['tokens']['auth.globus.org']['access_token']
+    # with open(os.path.join(upload_folder, 'parameter.yaml'), 'w') as f:
+    #     yaml.dump(parameter_dict, f, default_flow_style=False)
+
     # task_id = 'randomid'
     # appfl_config_key = f'{server_group_id}/{server_id}/{task_id}/appfl_config.yaml'
     # appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')
+    # parameter_key = f'{server_group_id}/{server_id}/{task_id}/parameter.yaml'
+    # parameter_fp  = os.path.join(upload_folder, 'parameter.yaml')
     # if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
     #     flash("Error: The configuration file is not uploaded successfully!")
     #     return redirect(request.referrer)
-    # print(f'Group members: {group_members_str}')
-    # print(f'Server ID: {server_id}')
-    # print(f'Group ID: {server_group_id}')
-    # print(f'Upload folder: {app.config["UPLOAD_FOLDER"]}')
-    # print(f"Funcx  token: {session['tokens']['funcx_service']['access_token']}")
-    # print(f"Search token: {session['tokens']['search.api.globus.org']['access_token']}")
-    # print(f"Openid token: {session['tokens']['auth.globus.org']['access_token']}")
+    # if not s3_upload(S3_BUCKET_NAME, parameter_key, parameter_fp, delete_local=True):
+    #     flash("Error: The parameter file is not uploaded successfully!")
+    #     return redirect(request.referrer)
+    # print(f'The key of the S3 parameter object file is {server_group_id}/{server_id}')
     # return redirect(url_for('dashboard'))
 
-    # Those parameters should be passed to the container
-    task_arn = ecs_run_task([group_members_str, 
-                        server_id, 
-                        server_group_id, 
-                        app.config["UPLOAD_FOLDER"],
-                        session['tokens']['funcx_service']['access_token'],
-                        session['tokens']['search.api.globus.org']['access_token'],
-                        session['tokens']['auth.globus.org']['access_token']
-    ])
+    # Prepare a parameter file for running the server
+    parameter_dict = {}
+    parameter_dict['group_members'] = group_members_str
+    parameter_dict['server_id'] = server_id
+    parameter_dict['group_id'] = server_group_id
+    parameter_dict['upload_folder'] = app.config["UPLOAD_FOLDER"]
+    parameter_dict['funcx_token'] = session['tokens']['funcx_service']['access_token']
+    parameter_dict['search_token'] = session['tokens']['search.api.globus.org']['access_token']
+    parameter_dict['openid_token'] = session['tokens']['auth.globus.org']['access_token']
+    with open(os.path.join(upload_folder, 'parameter.yaml'), 'w') as f:
+        yaml.dump(parameter_dict, f, default_flow_style=False)
+    base_folder = f'{server_group_id}/{server_id}'
+
+    # Start the server
+    task_arn = ecs_run_task([base_folder])
+
     # Upload the configuration file to AWS S3
     task_id = ecs_arn2id(task_arn)
     appfl_config_key = f'{server_group_id}/{server_id}/{task_id}/appfl_config.yaml'
     appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')
+    parameter_key = f'{server_group_id}/{server_id}/{task_id}/parameter.yaml'
+    parameter_fp  = os.path.join(upload_folder, 'parameter.yaml')
     if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
         flash("Error: The configuration file is not uploaded successfully!")
+        return redirect(request.referrer)
+    if not s3_upload(S3_BUCKET_NAME, parameter_key, parameter_fp, delete_local=True):
+        flash("Error: The parameter file is not uploaded successfully!")
         return redirect(request.referrer)
     if not dynamodb_append_task(server_group_id, task_arn, exp_name):
         flash("An error occurs when adding the task!")
     flash("The federation is started!")
-    # appfl_process = multiprocessing.Process(target=run_appfl, args=(group_members, session.get('primary_identity'), server_group_id, app.config['UPLOAD_FOLDER']))
-    # appfl_process.start()
-    # flash("The federation is started!")
     return redirect(url_for('dashboard'))
 
 @app.route('/handle-task-delete', methods=['GET'])
