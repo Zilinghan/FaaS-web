@@ -77,7 +77,7 @@
                 {%for i in range(task_ids|length)%}
                 <tr>
                   <td>
-                    <input type="checkbox" name="item_checkbox" value="{{ task_ids[i] }}" task-name="{{task_names[i]}}">&nbsp;{{task_names[i]}}
+                    <input type="checkbox" name="item_checkbox" value="{{ task_ids[i] }}" task-name="{{task_names[i]}}" task-arn="{{task_arns[i]}}">&nbsp;{{task_names[i]}}
                   </td>
                   <td>{{task_ids[i]}}</td>
                   <td id="task_{{task_ids[i]}}_status"></td>
@@ -191,11 +191,11 @@
           </button>
         </div>
         <div class="modal-body">
-          You are going to delete the following experiments:
+          You are going to delete the following experiments. This will stop any running experiment and delete all outputs related to the experiment.
           <br>
-          <div id="deleteItemList">
+          <div id="deleteItemList" style="margin-top: 1%; margin-bottom: 1%">
           </div>
-          <br>
+          {# <br> #}
           To Confirm the deletion, print enter <em>delete</em> in the text input field.
           <input type="text" id="deleteConfirmForm" class="form-control" placeholder="delete" required="required" tabindex="1">
         </div>
@@ -211,6 +211,7 @@
     // Script for updating selected tasks
     var selectedItems     = []
     var selectedTaskNames = []
+    var selectedTaskARNs  = []
     var group_id = "{{ server_group_id }}";
 
     $('input[name="item_checkbox"]').on('change', function() {
@@ -218,9 +219,11 @@
       if ($(this).is(':checked')) {
         selectedItems.push($(this).val());
         selectedTaskNames.push($(this)[0].getAttribute('task-name'));
+        selectedTaskARNs.push($(this)[0].getAttribute('task-arn'));
       } else {
         selectedItems.splice(selectedItems.indexOf($(this).val()), 1);
         selectedTaskNames.splice(selectedTaskNames.indexOf($(this)[0].getAttribute('task-name')), 1);
+        selectedTaskARNs.splice(selectedTaskARNs.indexOf($(this)[0].getAttribute('task-arn')), 1);
       }
       
       // Change the status of the action buttons according to the number of selected items
@@ -275,16 +278,21 @@
       // Check again: the user has confirmed the deletion & at least one selected task
       var confirmInfo = document.getElementById("deleteConfirmForm").value;
       if (confirmInfo != 'delete' || selectedItems.length == 0) {
-        console.log("Invalid Delete!")
         return;
       }
-      console.log("Valid Delete!")
+      var deleted_task_arns = {};
+      for (var i = 0; i < selectedTaskARNs.length; i++) {
+        deleted_task_arns[i] = selectedTaskARNs[i];
+      }
       $.ajax({
-        url: '/handle-task-delete',
-        method: 'GET',
-        data: {},
+        url: '/task-delete',
+        method: 'POST',
+        data: {
+          task_group: group_id,
+          task_arns: deleted_task_arns
+        },
         success: function(resp){
-          console.log('DELETED')
+          window.location.reload();
         }
       })
       // TODO: Write the backend for this using ajax

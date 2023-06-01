@@ -17,7 +17,7 @@ from globus_sdk import (RefreshTokenAuthorizer, TransferAPIError, TransferClient
 from portal.utils import (get_portal_tokens, get_safe_redirect, group_tagging, get_servers_clients, \
                           load_portal_client, load_group_client, FL_TAG,\
                           s3_download, s3_upload, s3_get_download_link, s3_download_folder, \
-                          ecs_run_task, ecs_task_status, ecs_arn2id, ecs_parse_taskinfo, \
+                          ecs_run_task, ecs_task_status, ecs_arn2id, ecs_parse_taskinfo, ecs_task_delete, \
                           dynamodb_get_tasks, dynamodb_append_task, get_funcx_client, aws_get_log, \
                           training_data_preprocessing, val_test_data_preprocessing, hp_data_preprocessing)
 from portal.github_integration import github_bp
@@ -1062,11 +1062,18 @@ def upload_server_config(server_group_id, run='True'):
     flash("The federation is started!")
     return redirect(url_for('dashboard'))
 
-@app.route('/handle-task-delete', methods=['GET'])
+@app.route('/task-delete', methods=['POST'])
 @authenticated
-def handle_task_delete():
-    flash("SORRY, not implemented!")
-    return 'OK'
+def task_delete():
+    group_id = request.form['task_group']
+    gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    group_server_id = gc.get_group(group_id, include=['my_memberships'])['my_memberships'][0]['identity_id']
+    for key in request.form:
+        if key != 'task_group':
+            task_arn = request.form[key]
+            print(task_arn)
+            ecs_task_delete(task_arn, group_id, group_server_id)
+    return redirect(request.referrer)
 
 class EndpointStatus(Enum):
     UNSET = -2              # User does not specify an endpoint
