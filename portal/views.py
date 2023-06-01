@@ -18,7 +18,7 @@ from portal.utils import (get_safe_redirect, group_tagging, get_servers_clients,
                           s3_download, s3_upload, s3_get_download_link, s3_download_folder, \
                           ecs_run_task, ecs_task_status, ecs_arn2id, ecs_parse_taskinfo, \
                           dynamodb_get_tasks, dynamodb_append_task, get_funcx_client, aws_get_log, \
-                          dynamodb_get_profile, dynamodb_add_profile, 
+                          dynamodb_get_profile, dynamodb_add_profile, \
                           training_data_preprocessing, val_test_data_preprocessing, hp_data_preprocessing)
 
 app.register_blueprint(github_bp, url_prefix='/github_integration')
@@ -167,7 +167,7 @@ def authcallback():
         return redirect(url_for('dashboard'))
 
 
-def get_endpoint_information(members, group_id, server_id):
+def get_endpoint_information(members, group_id):
     """
     Check if the APPFL clients in the group have uploaded their endpoint information
     Inputs:
@@ -180,33 +180,32 @@ def get_endpoint_information(members, group_id, server_id):
     """
     user_names, user_emails, user_orgs, user_endpoints = [], [], [], []
     for member in members:
-        user_id = member['identity_id']
-        # TODO: Check if this is a correct design decision: an APPFL server himself is also an APPFL client
-        # if user_id == session.get('primary_identity'): continue
-
-        # Obtain user names and emails
         if member['status'] != 'active': continue
-        try:
-            user_names.append(member['membership_fields']['name'])
-        except:
-            if user_id == server_id:
-                user_names.append(f"{session.get('name')} (You)")
+        # Obtain user information
+        user_id = member['identity_id']
+        profile = dynamodb_get_profile(user_id)
+        if profile:
+            name, email, institution = profile
+        else:
+            if 'name' in member['membership_fields']: 
+                name = member['membership_fields']['name']
+            elif 'username' in member:
+                name = member['username']
             else:
-                user_names.append(member['username'])
-        try:
-            user_emails.append(member['membership_fields']['email'])
-        except:
-            if user_id == server_id:
-                user_emails.append(session.get('email'))
+                name = 'unknown'
+            if 'email' in member['membership_fields']:
+                email = member['membership_fields']['email']
+            elif 'invite_email_address' in member:
+                email = member['invite_email_address']
             else:
-                user_emails.append("NONE") # TODO: how to deal with a user without any valid email?
-        try:
-            user_orgs.append(member['membership_fields']['organization'])
-        except:
-            if user_id == server_id:
-                user_orgs.append(f"{session.get('institution')}")
+                email = 'unknown'
+            if 'organization' in member['membership_fields']:
+                institution = member['membership_fields']['organization']
             else:
-                user_orgs.append("")
+                institution = 'unknown'
+        user_names.append(name)
+        user_emails.append(email)
+        user_orgs.append(institution)
         # Obtain user endpoints
         client_config_folder = os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id)
         client_config_key    = f'{group_id}/{user_id}/client.yaml'
@@ -248,10 +247,8 @@ def browse_config(server_group_id=None, client_group_id=None):
     auth_url = f"https://github.com/login/oauth/authorize?client_id={client_id}&scope=repo&redirect_uri={redirect_uri}"
     
     if server_group_id is not None:
-        server_info = gc.get_group(server_group_id, include=['my_memberships'])['my_memberships'][0]
-        server_id   = server_info['identity_id']
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id, server_id)
+        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id)
         return render_template('server.jinja2', \
                                server_group_id=server_group_id, \
                                client_names=client_names, \
@@ -276,13 +273,11 @@ def browse_info(server_group_id=None, client_group_id=None):
     """
     gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
     if server_group_id is not None:
-        server_info = gc.get_group(server_group_id, include=['my_memberships'])['my_memberships'][0]
-        server_id   = server_info['identity_id']
         task_info = dynamodb_get_tasks(server_group_id)
         task_arns, task_names = ecs_parse_taskinfo(task_info)
         task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id, server_id)
+        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id)
         return render_template('server_info.jinja2', \
                                 server_group_id=server_group_id, \
                                 client_names=client_names, \
