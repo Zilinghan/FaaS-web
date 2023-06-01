@@ -23,6 +23,7 @@ ecs = boto3.client('ecs')
 log = boto3.client('logs')
 dynamodb = boto3.resource('dynamodb')
 dynamodb_table = dynamodb.Table('appflx-tasks')
+user_profile_table = dynamodb.Table('appflx-users')
 # Hard code for ECS information
 ECS_CLUSTER = 'appflx-cluster' 
 ECS_TASK_DEF = 'appflx-fl-server'
@@ -231,6 +232,22 @@ def s3_download_folder(bucket_name, key_folder, file_folder):
         print(e)
         return False
 
+def s3_delete_folder(bucket_name, key_folder):
+    """Delete every file in the `key_folder` of S3 bucket with name `bucket_name`."""
+    try:
+        objects = s3.list_objects_v2(Bucket=bucket_name, Prefix=key_folder)
+        if 'Contents' not in objects: return
+        if len(objects['Contents']) == 0: return
+        objects = objects['Contents']
+        delete_objects = [{'Key': obj['Key']} for obj in objects]
+        if delete_objects:
+            s3.delete_objects(Bucket=bucket_name, Delete={'Objects': delete_objects})
+            print('Objects deleted successfully on S3.')
+        # Delete the folder itself (optional)
+        s3.delete_object(Bucket=bucket_name, Key=key_folder.rstrip('/') + '/')
+    except Exception as e:
+        print(f"Error occurs in deleting S3 bucket {bucket_name} folder {key_folder}: {e}")
+
 def s3_upload(bucket_name, key_name, file_name, delete_local=True):
     """
     Upload the local file with name `file_name` to the S3 bucket `bucket_name` and save it as `key_name`.
@@ -306,6 +323,46 @@ def ecs_parse_taskinfo(task_info):
         task_names.append(task_name)
     return task_arns, task_names
 
+def ecs_task_stop(task_arn):
+    """Stop a running ECS task using the task ARN."""
+    try:
+        ecs.stop_task(cluster=ECS_CLUSTER, task=task_arn)
+        print('Task stopped successfully.')
+    except Exception as e:
+        print(f"Failed to stop the task with error: {e}")
+
+def ecs_task_delete(task_arn, task_group, group_server_id):
+    """
+    Given task ARN, do the following steps to clean everything related to the task:
+        (1) Stop the task if it is not finished 
+        (2) Delete the task from the task table in DynamoDB
+        (3) Delete everything output files related to this task
+    TODO: If we use more task status in the future, remember to update here
+    """
+    task_status = ecs_task_status(task_arn)
+    if task_status != 'DONE':
+        ecs_task_stop(task_arn)
+    dynamodb_delete_task(task_arn, task_group)
+    task_id = ecs_arn2id(task_arn)
+    s3_folder = f'{task_group}/{group_server_id}/{task_id}'
+    s3_delete_folder(S3_BUCKET_NAME, s3_folder)
+    print(f"Everything for task {task_id} is cleaned successfully")
+    
+def dynamodb_delete_task(task_arn, group_id):
+    """Delete the task arn from the group in the DynamoDB task table."""
+    try:
+        task_arns = dynamodb_get_tasks(group_id)
+        updated_task_arns = [arn for arn in task_arns if not str(arn).startswith(task_arn)]
+        dynamodb_table.update_item(
+            Key={'group-id': group_id},
+            UpdateExpression='set #t = :updated_list',
+            ExpressionAttributeNames={'#t': 'task-ids'},
+            ExpressionAttributeValues={':updated_list': updated_task_arns}
+        )
+        print(f"Task deleted succesfully in DynamoDB table")
+    except Exception as e:
+        print(f"Error in deleting task in DynamoDB: {e}")
+
 def dynamodb_get_tasks(group_id):
     """Return all the task ids for the certain group"""
     try:
@@ -343,6 +400,22 @@ def dynamodb_append_task(group_id, task_id, exp_name):
                 err.response['Error']['Code'], err.response['Error']['Message']))
             return False
         
+def dynamodb_get_profile(user_id):
+    """Get the user profile for `user_id` from the profile table in DynamoDB."""
+    try:
+        response = user_profile_table.get_item(Key={'user-id': user_id})
+        profile = response['Item']
+        return profile['name'], profile['email'], profile['institution']
+    except:
+        return None
+    
+def dynamodb_add_profile(user_id, name, email, institution):
+    """Add the user profile to the profile table in DynamoDB."""
+    try:
+        user_profile_table.put_item(Item={'user-id': user_id, 'name': name, 'email': email, 'institution': institution})
+    except:
+        pass
+
 def _s3_get_log(group_id, user_id, task_id):
     # If nothing in the log contents, obtain the log from S3 bucker
     log_key    = f'{group_id}/{user_id}/{task_id}/log_server.log'

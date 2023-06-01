@@ -3,32 +3,25 @@ import json
 import yaml
 import time
 import funcx
+import base64
 import requests
 import globus_sdk
 import importlib.util
 from enum import Enum
-from datetime import datetime
-from funcx import FuncXClient
+from portal import app
 from tensorboard import program
-from portal import app, database, datasets
 from portal.decorators import authenticated
+from portal.github_integration import github_bp
 from flask import (abort, flash, redirect, render_template, request, session, url_for)
-from globus_sdk import (RefreshTokenAuthorizer, TransferAPIError, TransferClient, TransferData)
-from portal.utils import (get_portal_tokens, get_safe_redirect, group_tagging, get_servers_clients, \
+from portal.utils import (get_safe_redirect, group_tagging, get_servers_clients, \
                           load_portal_client, load_group_client, FL_TAG,\
                           s3_download, s3_upload, s3_get_download_link, s3_download_folder, \
-                          ecs_run_task, ecs_task_status, ecs_arn2id, ecs_parse_taskinfo, \
+                          ecs_run_task, ecs_task_status, ecs_arn2id, ecs_parse_taskinfo, ecs_task_delete, \
                           dynamodb_get_tasks, dynamodb_append_task, get_funcx_client, aws_get_log, \
+                          dynamodb_get_profile, dynamodb_add_profile, \
                           training_data_preprocessing, val_test_data_preprocessing, hp_data_preprocessing)
-from portal.github_integration import github_bp
-import base64
 
 app.register_blueprint(github_bp, url_prefix='/github_integration')
-
-try:
-    from urllib.parse import urlencode
-except ImportError:
-    from urllib import urlencode
 
 S3_BUCKET_NAME = 'appflx-bucket' 
 STATUS_CHECK_TIMES = 5
@@ -37,36 +30,6 @@ STATUS_CHECK_TIMES = 5
 def home():
     """Home page"""
     return render_template('home.jinja2')
-
-
-# @app.route('/report', methods=['GET'])
-# def report():
-#     """Only for test purpose"""
-#     # Load the training metrics
-#     with open("./portal/log_funcx.yaml") as f:
-#         training_data = yaml.safe_load(f)
-#     training_data = training_data_preprocessing(training_data)
-
-#     # Load the validation and test metrics
-#     with open("./portal/log_eval.json") as f:
-#         val_test_data = json.load(f)
-#     client_validation, server_validation, client_test, server_test = val_test_data_preprocessing(val_test_data)
-    
-#     # Load the training hyperparameters
-#     with open("./portal/appfl_config.yaml") as f:
-#         hp_data = yaml.safe_load(f)
-#     hp_data = hp_data_preprocessing(hp_data)
-#     return render_template('report.jinja2', 
-#                            tab_title='Federation Report',
-#                            report_title='Federation Report',
-#                            training_data=training_data, 
-#                            client_validation=client_validation, 
-#                            server_validation=server_validation,
-#                            client_test=client_test,
-#                            server_test=server_test,
-#                            hp_data=hp_data
-#                         )
-#     return render_template('report_template.jinja2', data=data)
 
 
 @app.route('/signup', methods=['GET'])
@@ -92,8 +55,7 @@ def logout():
     client = load_portal_client()
 
     unrevoked_tokens = ['auth.globus.org', 'funcx_service', 'search.api.globus.org']
-    
-    
+
     # Revode the tokens with Globus Auth
     for key, token_info in session['tokens'].items():
         if key not in unrevoked_tokens:
@@ -119,43 +81,32 @@ def logout():
 @app.route('/profile', methods=['GET', 'POST'])
 @authenticated
 def profile():
-    """User profile information. Assocated with a Globus Auth identity."""
     if request.method == 'GET':
-        identity_id = session.get('primary_identity')
-        profile = database.load_profile(identity_id)
-
-        if profile:
+        user_id = session.get('primary_identity')
+        profile = dynamodb_get_profile(user_id)
+        if profile is not None:
             name, email, institution = profile
-
             session['name'] = name
             session['email'] = email
             session['institution'] = institution
         else:
-            flash(
-                'Please complete any missing profile fields and press Save.')
-
+            flash('Please complete any missing profile fields and press Save.')
         if request.args.get('next'):
             session['next'] = get_safe_redirect()
-
         return render_template('profile.jinja2')
     elif request.method == 'POST':
         name = session['name'] = request.form['name']
         email = session['email'] = request.form['email']
         institution = session['institution'] = request.form['institution']
-
-        database.save_profile(identity_id=session['primary_identity'],
-                              name=name,
-                              email=email,
-                              institution=institution)
-
+        all_identities = session['all_identities']
+        for user_id in all_identities:
+            dynamodb_add_profile(user_id, name, email, institution)
         flash('Thank you! Your profile has been successfully updated.')
-
         if 'next' in session:
             redirect_to = session['next']
             session.pop('next')
         else:
             redirect_to = url_for('profile')
-
         return redirect(redirect_to)
 
 
@@ -165,8 +116,7 @@ def authcallback():
     # If we're coming back from Globus Auth in an error state, the error
     # will be in the "error" query string parameter.
     if 'error' in request.args:
-        flash("You could not be logged into the portal: " +
-              request.args.get('error_description', request.args['error']))
+        flash("You could not be logged into the portal: " + request.args.get('error_description', request.args['error']))
         return redirect(url_for('home'))
 
     # Set up our Globus Auth/OAuth2 state
@@ -195,6 +145,7 @@ def authcallback():
         code = request.args.get('code')
         tokens = client.oauth2_exchange_code_for_tokens(code)
         id_token = tokens.decode_id_token()
+        all_identities = [identity['sub'] for identity in id_token['identity_set']]
         session.update(
             tokens=tokens.by_resource_server,
             is_authenticated=True,
@@ -203,25 +154,20 @@ def authcallback():
             institution=id_token.get('organization'),
             primary_username=id_token.get('preferred_username'),
             primary_identity=id_token.get('sub'),
+            all_identities=all_identities
         )
-        # print(session['tokens'])
-
-        profile = database.load_profile(session['primary_identity'])
-
+        profile = dynamodb_get_profile(session['primary_identity'])
         if profile:
             name, email, institution = profile
-
             session['name'] = name
             session['email'] = email
             session['institution'] = institution
         else:
-            return redirect(url_for('profile',
-                            next=url_for('dashboard')))
-
+            return redirect(url_for('profile', next=url_for('dashboard')))
         return redirect(url_for('dashboard'))
 
 
-def get_endpoint_information(members, group_id, server_id):
+def get_endpoint_information(members, group_id):
     """
     Check if the APPFL clients in the group have uploaded their endpoint information
     Inputs:
@@ -234,33 +180,32 @@ def get_endpoint_information(members, group_id, server_id):
     """
     user_names, user_emails, user_orgs, user_endpoints = [], [], [], []
     for member in members:
-        user_id = member['identity_id']
-        # TODO: Check if this is a correct design decision: an APPFL server himself is also an APPFL client
-        # if user_id == session.get('primary_identity'): continue
-
-        # Obtain user names and emails
         if member['status'] != 'active': continue
-        try:
-            user_names.append(member['membership_fields']['name'])
-        except:
-            if user_id == server_id:
-                user_names.append(f"{session.get('name')} (You)")
+        # Obtain user information
+        user_id = member['identity_id']
+        profile = dynamodb_get_profile(user_id)
+        if profile:
+            name, email, institution = profile
+        else:
+            if 'name' in member['membership_fields']: 
+                name = member['membership_fields']['name']
+            elif 'username' in member:
+                name = member['username']
             else:
-                user_names.append(member['username'])
-        try:
-            user_emails.append(member['membership_fields']['email'])
-        except:
-            if user_id == server_id:
-                user_emails.append(session.get('email'))
+                name = 'unknown'
+            if 'email' in member['membership_fields']:
+                email = member['membership_fields']['email']
+            elif 'invite_email_address' in member:
+                email = member['invite_email_address']
             else:
-                user_emails.append("NONE") # TODO: how to deal with a user without any valid email?
-        try:
-            user_orgs.append(member['membership_fields']['organization'])
-        except:
-            if user_id == server_id:
-                user_orgs.append(f"{session.get('institution')}")
+                email = 'unknown'
+            if 'organization' in member['membership_fields']:
+                institution = member['membership_fields']['organization']
             else:
-                user_orgs.append("")
+                institution = 'unknown'
+        user_names.append(name)
+        user_emails.append(email)
+        user_orgs.append(institution)
         # Obtain user endpoints
         client_config_folder = os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id)
         client_config_key    = f'{group_id}/{user_id}/client.yaml'
@@ -302,10 +247,8 @@ def browse_config(server_group_id=None, client_group_id=None):
     auth_url = f"https://github.com/login/oauth/authorize?client_id={client_id}&scope=repo&redirect_uri={redirect_uri}"
     
     if server_group_id is not None:
-        server_info = gc.get_group(server_group_id, include=['my_memberships'])['my_memberships'][0]
-        server_id   = server_info['identity_id']
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id, server_id)
+        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id)
         return render_template('server.jinja2', \
                                server_group_id=server_group_id, \
                                client_names=client_names, \
@@ -330,13 +273,11 @@ def browse_info(server_group_id=None, client_group_id=None):
     """
     gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
     if server_group_id is not None:
-        server_info = gc.get_group(server_group_id, include=['my_memberships'])['my_memberships'][0]
-        server_id   = server_info['identity_id']
         task_info = dynamodb_get_tasks(server_group_id)
         task_arns, task_names = ecs_parse_taskinfo(task_info)
         task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id, server_id)
+        client_names, client_emails, client_orgs, client_endpoints = get_endpoint_information(server_group['memberships'], server_group_id)
         return render_template('server_info.jinja2', \
                                 server_group_id=server_group_id, \
                                 client_names=client_names, \
@@ -887,9 +828,7 @@ def load_server_config(form, server_group_id):
                 # Handle errors
                 print("====================upload from github error====================")
                 return "Error occurred."
-        
-        
-        
+
         model_key = f'{server_group_id}/{server_id}/model.py'
         
         # Upload the model file to AWS S3
@@ -1062,11 +1001,18 @@ def upload_server_config(server_group_id, run='True'):
     flash("The federation is started!")
     return redirect(url_for('dashboard'))
 
-@app.route('/handle-task-delete', methods=['GET'])
+@app.route('/task-delete', methods=['POST'])
 @authenticated
-def handle_task_delete():
-    flash("SORRY, not implemented!")
-    return 'OK'
+def task_delete():
+    group_id = request.form['task_group']
+    gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    group_server_id = gc.get_group(group_id, include=['my_memberships'])['my_memberships'][0]['identity_id']
+    for key in request.form:
+        if key != 'task_group':
+            task_arn = request.form[key]
+            print(task_arn)
+            ecs_task_delete(task_arn, group_id, group_server_id)
+    return redirect(request.referrer)
 
 class EndpointStatus(Enum):
     UNSET = -2              # User does not specify an endpoint
@@ -1185,262 +1131,3 @@ def error413(e):
     """Error handler for uploading file exceeding the maximum size."""
     flash(f'Error: File is larger than the maximum file size: {float(app.config["MAX_CONTENT_LENGTH"]/(1024*1024)):2f}MB!')
     return redirect(request.referrer)
-
-
-# =====================================DEPRECATED BELOW===============================================
-
-@app.route('/browse/dataset/<dataset_id>', methods=['GET'])
-@app.route('/browse/endpoint/<endpoint_id>/<path:endpoint_path>',
-           methods=['GET'])
-@authenticated
-def browse(dataset_id=None, endpoint_id=None, endpoint_path=None):
-    """
-    - Get list of files for the selected dataset or endpoint ID/path
-    - Return a list of files to a browse view
-
-    The target template (browse.jinja2) expects an `endpoint_uri` (if
-    available for the endpoint), `target` (either `"dataset"`
-    or `"endpoint"`), and 'file_list' (list of dictionaries) containing
-    the following information about each file in the result:
-
-    {'name': 'file name', 'size': 'file size', 'id': 'file uri/path'}
-
-    If you want to display additional information about each file, you
-    must add those keys to the dictionary and modify the browse.jinja2
-    template accordingly.
-    """
-
-    assert bool(dataset_id) != bool(endpoint_id and endpoint_path)
-
-    if dataset_id:
-        try:
-            dataset = next(ds for ds in datasets if ds['id'] == dataset_id)
-        except StopIteration:
-            abort(404)
-
-        endpoint_id = app.config['DATASET_ENDPOINT_ID']
-        endpoint_path = app.config['DATASET_ENDPOINT_BASE'] + dataset['path']
-
-    else:
-        endpoint_path = '/' + endpoint_path
-
-    transfer_tokens = session['tokens']['transfer.api.globus.org']
-
-    authorizer = RefreshTokenAuthorizer(
-        transfer_tokens['refresh_token'],
-        load_portal_client(),
-        access_token=transfer_tokens['access_token'],
-        expires_at=transfer_tokens['expires_at_seconds'])
-
-    transfer = TransferClient(authorizer=authorizer)
-
-    try:
-        transfer.endpoint_autoactivate(endpoint_id)
-        listing = transfer.operation_ls(endpoint_id, path=endpoint_path)
-    except TransferAPIError as err:
-        flash('Error [{}]: {}'.format(err.code, err.message))
-        return redirect(url_for('transfer'))
-
-    file_list = [e for e in listing if e['type'] == 'file']
-
-    ep = transfer.get_endpoint(endpoint_id)
-
-    https_server = ep['https_server']
-    endpoint_uri = https_server + endpoint_path if https_server else None
-    webapp_xfer = 'https://app.globus.org/file-manager?' + \
-        urlencode(dict(origin_id=endpoint_id, origin_path=endpoint_path))
-
-    return render_template('browse.jinja2', endpoint_uri=endpoint_uri,
-                           target="dataset" if dataset_id else "endpoint",
-                           description=(dataset['name'] if dataset_id
-                                        else ep['display_name']),
-                           file_list=file_list, webapp_xfer=webapp_xfer)
-
-
-@app.route('/transfer', methods=['GET', 'POST'])
-@authenticated
-def transfer():
-    """
-    - Save the submitted form to the session.
-    - Send to Globus to select a destination endpoint using the
-      Browse Endpoint helper page.
-    """
-    if request.method == 'GET':
-        return render_template('transfer.jinja2', datasets=datasets)
-
-    if request.method == 'POST':
-        if not request.form.get('dataset'):
-            flash('Please select at least one dataset.')
-            return redirect(url_for('transfer'))
-
-        params = {
-            'method': 'POST',
-            'action': url_for('submit_transfer', _external=True,
-                              _scheme='https'),
-            'filelimit': 0,
-            'folderlimit': 1
-        }
-
-        browse_endpoint = 'https://app.globus.org/file-manager?{}' \
-            .format(urlencode(params))
-
-        session['form'] = {
-            'datasets': request.form.getlist('dataset')
-        }
-
-        return redirect(browse_endpoint)
-
-
-@app.route('/submit-transfer', methods=['POST'])
-@authenticated
-def submit_transfer():
-    """
-    - Take the data returned by the Browse Endpoint helper page
-      and make a Globus transfer request.
-    - Send the user to the transfer status page with the task id
-      from the transfer.
-    """
-    browse_endpoint_form = request.form
-
-    selected = session['form']['datasets']
-    filtered_datasets = [ds for ds in datasets if ds['id'] in selected]
-
-    transfer_tokens = session['tokens']['transfer.api.globus.org']
-
-    authorizer = RefreshTokenAuthorizer(
-        transfer_tokens['refresh_token'],
-        load_portal_client(),
-        access_token=transfer_tokens['access_token'],
-        expires_at=transfer_tokens['expires_at_seconds'])
-
-    transfer = TransferClient(authorizer=authorizer)
-
-    source_endpoint_id = app.config['DATASET_ENDPOINT_ID']
-    source_endpoint_base = app.config['DATASET_ENDPOINT_BASE']
-    destination_endpoint_id = browse_endpoint_form['endpoint_id']
-    destination_folder = browse_endpoint_form.get('folder[0]')
-
-    transfer_data = TransferData(transfer_client=transfer,
-                                 source_endpoint=source_endpoint_id,
-                                 destination_endpoint=destination_endpoint_id,
-                                 label=browse_endpoint_form.get('label'))
-
-    for ds in filtered_datasets:
-        source_path = source_endpoint_base + ds['path']
-        dest_path = browse_endpoint_form['path']
-
-        if destination_folder:
-            dest_path += destination_folder + '/'
-
-        dest_path += ds['name'] + '/'
-
-        transfer_data.add_item(source_path=source_path,
-                               destination_path=dest_path,
-                               recursive=True)
-
-    transfer.endpoint_autoactivate(source_endpoint_id)
-    transfer.endpoint_autoactivate(destination_endpoint_id)
-    task_id = transfer.submit_transfer(transfer_data)['task_id']
-
-    flash('Transfer request submitted successfully. Task ID: ' + task_id)
-
-    return(redirect(url_for('transfer_status', task_id=task_id)))
-
-
-@app.route('/status/<task_id>', methods=['GET'])
-@authenticated
-def transfer_status(task_id):
-    """
-    Call Globus to get status/details of transfer with
-    task_id.
-
-    The target template (tranfer_status.jinja2) expects a Transfer API
-    'task' object.
-
-    'task_id' is passed to the route in the URL as 'task_id'.
-    """
-    transfer_tokens = session['tokens']['transfer.api.globus.org']
-
-    authorizer = RefreshTokenAuthorizer(
-        transfer_tokens['refresh_token'],
-        load_portal_client(),
-        access_token=transfer_tokens['access_token'],
-        expires_at=transfer_tokens['expires_at_seconds'])
-
-    transfer = TransferClient(authorizer=authorizer)
-    task = transfer.get_task(task_id)
-
-    return render_template('transfer_status.jinja2', task=task)
-
-
-@app.route('/graph', methods=['GET', 'POST'])
-@authenticated
-def graph():
-    """
-    Make a request to the "resource server" (service app) API to
-    do the graph processing.
-    """
-    if request.method == 'GET':
-        return render_template('graph.jinja2', datasets=datasets)
-
-    selected_ids = request.form.getlist('dataset')
-    selected_year = request.form.get('year')
-
-    if not (selected_ids and selected_year):
-        flash("Please select at least one dataset and a year to graph.")
-        return redirect(url_for('graph'))
-
-    tokens = get_portal_tokens()
-    service_token = tokens.get('GlobusWorld Resource Server')['token']
-
-    service_url = '{}/{}'.format(app.config['SERVICE_URL_BASE'], 'api/doit')
-    req_headers = dict(Authorization='Bearer {}'.format(service_token))
-
-    req_data = dict(datasets=selected_ids,
-                    year=selected_year,
-                    user_identity_id=session.get('primary_identity'),
-                    user_identity_name=session.get('primary_username'))
-
-    resp = requests.post(service_url, headers=req_headers, data=req_data,
-                         verify=False)
-
-    resp.raise_for_status()
-
-    resp_data = resp.json()
-    dest_ep = resp_data.get('dest_ep')
-    dest_path = resp_data.get('dest_path')
-    dest_name = resp_data.get('dest_name')
-    graph_count = resp_data.get('graph_count')
-
-    flash("%d-file SVG upload to %s on %s completed!" %
-          (graph_count, dest_path, dest_name))
-
-    return redirect(url_for('browse', endpoint_id=dest_ep,
-                            endpoint_path=dest_path.lstrip('/')))
-
-
-@app.route('/graph/clean-up', methods=['POST'])
-@authenticated
-def graph_cleanup():
-    """Make a request to the service app API to do the graph processing."""
-    tokens = get_portal_tokens()
-    service_token = tokens.get('GlobusWorld Resource Server')['token']
-
-    service_url = '{}/{}'.format(app.config['SERVICE_URL_BASE'], 'api/cleanup')
-    req_headers = dict(Authorization='Bearer {}'.format(service_token))
-
-    resp = requests.post(service_url,
-                         headers=req_headers,
-                         data=dict(
-                             user_identity_name=session['primary_username']
-                         ),
-                         verify=False)
-
-    resp.raise_for_status()
-
-    task_id = resp.json()['task_id']
-
-    msg = '{} ({}).'.format('Your existing processed graphs have been removed',
-                            task_id)
-    flash(msg)
-    return redirect(url_for('graph'))
