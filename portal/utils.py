@@ -23,6 +23,7 @@ ecs = boto3.client('ecs')
 log = boto3.client('logs')
 dynamodb = boto3.resource('dynamodb')
 dynamodb_table = dynamodb.Table('appflx-tasks')
+user_profile_table = dynamodb.Table('appflx-users')
 # Hard code for ECS information
 ECS_CLUSTER = 'appflx-cluster' 
 ECS_TASK_DEF = 'appflx-fl-server'
@@ -343,6 +344,22 @@ def dynamodb_append_task(group_id, task_id, exp_name):
                 err.response['Error']['Code'], err.response['Error']['Message']))
             return False
         
+def dynamodb_get_profile(user_id):
+    """Get the user profile for `user_id` from the profile table in DynamoDB."""
+    try:
+        response = user_profile_table.get_item(Key={'user-id': user_id})
+        profile = response['Item']
+        return profile['name'], profile['email'], profile['institution']
+    except:
+        return None
+    
+def dynamodb_add_profile(user_id, name, email, institution):
+    """Add the user profile to the profile table in DynamoDB."""
+    try:
+        user_profile_table.put_item(Item={'user-id': user_id, 'name': name, 'email': email, 'institution': institution})
+    except:
+        pass
+
 def _s3_get_log(group_id, user_id, task_id):
     # If nothing in the log contents, obtain the log from S3 bucker
     log_key    = f'{group_id}/{user_id}/{task_id}/log_server.log'
