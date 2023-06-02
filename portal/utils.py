@@ -16,6 +16,7 @@ except ImportError:
     from urlparse import urlparse, urljoin
 
 FL_TAG = '__FLAAS'
+EXP_DIR = 'experiment'
 
 # For local test purposes, where all the access key are configured using awscli
 s3 = boto3.client('s3')
@@ -331,7 +332,7 @@ def ecs_task_stop(task_arn):
     except Exception as e:
         print(f"Failed to stop the task with error: {e}")
 
-def ecs_task_delete(task_arn, task_group, group_server_id):
+def ecs_task_delete(task_arn, task_group):
     """
     Given task ARN, do the following steps to clean everything related to the task:
         (1) Stop the task if it is not finished 
@@ -344,7 +345,7 @@ def ecs_task_delete(task_arn, task_group, group_server_id):
         ecs_task_stop(task_arn)
     dynamodb_delete_task(task_arn, task_group)
     task_id = ecs_arn2id(task_arn)
-    s3_folder = f'{task_group}/{group_server_id}/{task_id}'
+    s3_folder = f'{task_group}/{EXP_DIR}/{task_id}'
     s3_delete_folder(S3_BUCKET_NAME, s3_folder)
     print(f"Everything for task {task_id} is cleaned successfully")
     
@@ -418,7 +419,7 @@ def dynamodb_add_profile(user_id, name, email, institution):
 
 def _s3_get_log(group_id, user_id, task_id):
     # If nothing in the log contents, obtain the log from S3 bucker
-    log_key    = f'{group_id}/{user_id}/{task_id}/log_server.log'
+    log_key    = f'{group_id}/{EXP_DIR}/{task_id}/log_server.log'
     log_folder = os.path.join(app.config['UPLOAD_FOLDER'], group_id, user_id)
     log_name   = 'log_server.log'
     if s3_download(S3_BUCKET_NAME, log_key, log_folder, log_name):
