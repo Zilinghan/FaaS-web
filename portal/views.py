@@ -282,11 +282,8 @@ def browse_info(server_group_id=None, client_group_id=None):
     if client_group_id is not None:
         return render_template('client_info.jinja2', client_group_id=client_group_id)
 
-@app.route('/download/comp_report/<group_id>', methods=['GET'])
-@authenticated
-def download_comp_report(group_id=None):
+def download_comp_report(group_id, task_ids, referrer):
     """Download comparison report for experiments in a group."""
-    task_ids = request.args.get('task_ids')
     # task_ids is a string of comma-separated ids, split it into a list
     task_ids = task_ids.split(',')
     gc = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
@@ -341,7 +338,7 @@ def download_comp_report(group_id=None):
                 
             else:
                 flash("There is no report for at least one of the experiments!")
-                return redirect(request.referrer)
+                return redirect(referrer)
             
         return render_template('comp-report/comp_report.jinja2', 
                                 tab_title='Federation Comparison Report',
@@ -355,7 +352,7 @@ def download_comp_report(group_id=None):
                                 hp_data_list_json=json.dumps(hp_data_list))
     else:
         flash("Sorry, you do not select experiments in a right way!")
-        return redirect(request.referrer)    
+        return redirect(referrer)    
 
 @app.route('/download/<file_type>/<group_id>', methods=['GET'])
 @app.route('/download/<file_type>/<group_id>/<task_id>', methods=['GET'])
@@ -443,6 +440,9 @@ def download_file(file_type="", group_id=None, task_id=None):
         else:
             flash("There is no report for this federation!")
             return redirect(request.referrer)
+    elif file_type == 'comp_report' and group_id is not None:
+        task_ids = request.args.get('task_ids')
+        return download_comp_report(group_id, task_ids, request.referrer)
     else:
         flash("Sorry, this function is still not implemented!")
         return redirect(request.referrer)
