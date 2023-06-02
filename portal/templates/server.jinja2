@@ -40,7 +40,7 @@
 
         <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
         {# TODO: Let the run of funcx-appfl choose which alg to run#}
-        <form role="form" onsubmit="disableSubmitButton()" action="{{url_for('upload_server_config', server_group_id=server_group_id, run=True)}}" method="POST" enctype = "multipart/form-data">
+        <form role="form" onsubmit="disableSubmitButton()" action="{{url_for('upload_server_config', server_group_id=server_group_id)}}" method="POST" enctype = "multipart/form-data">
           {# Drop-down box for selected federated learning algorithm #}
           {% set fed_algs = ['Federated Average', 'Federated Average Momentum', 'Federated Adagrad', 'Federated Adam', 'Federated Yogi', 'Federated Asynchronous']%}
           {% set fed_algs_func_names = ['ServerFedAvg', 'ServerFedAvgMomentum', 'ServerFedAdagrad', 'ServerFedAdam', 'ServerFedYogi', 'ServerFedAsynchronous']%}
