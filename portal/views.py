@@ -11,6 +11,7 @@ from portal import app
 from tensorboard import program
 from portal.decorators import authenticated
 from portal.github_integration import github_bp
+from portal.hugging_face_integration import hf_bp
 from flask import (abort, flash, redirect, render_template, request, session, url_for)
 from portal.utils import (EXP_DIR, FL_TAG, S3_BUCKET_NAME, \
                           get_safe_redirect, group_tagging, get_servers_clients, \
@@ -22,6 +23,7 @@ from portal.utils import (EXP_DIR, FL_TAG, S3_BUCKET_NAME, \
                           training_data_preprocessing, val_test_data_preprocessing, hp_data_preprocessing)
 
 app.register_blueprint(github_bp, url_prefix='/github_integration')
+app.register_blueprint(hf_bp, url_prefix='/hugging_face_integration')
 
 STATUS_CHECK_TIMES = 5
 
@@ -698,18 +700,16 @@ def load_server_config(form, server_group_id):
         model_file_fp = None
     # If user uploads a custom model
     else:
+        upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id)
+        if not os.path.exists(upload_folder):
+            os.makedirs(upload_folder)
         if form['model-type'] == 'custom':
-            upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id)
-            if not os.path.exists(upload_folder):
-                os.makedirs(upload_folder)
+            
             model_file = request.files['custom-model-file']
             model_file_fp = os.path.join(upload_folder, 'model.py')
             model_file.save(model_file_fp)
         elif form['model-type'] == 'github':
             # Handle GitHub file selection here
-            upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id)
-            if not os.path.exists(upload_folder):
-                os.makedirs(upload_folder)
             access_token = session.get('access_token')
             repo_name = form.get('github-repo-name') 
             branch = form.get('github-branch') 
@@ -740,6 +740,29 @@ def load_server_config(form, server_group_id):
                 # Handle errors
                 print("====================upload from github error====================")
                 return "Error occurred."
+        elif form['model-type'] == 'hf':
+            model_name = form.get('hf-model-name')
+
+            # Construct the URL to the .tar.gz file containing the model weights
+            model_url = f"https://huggingface.co/{model_name}/resolve/main/pytorch_model.bin"
+
+            # Make a request to the Hugging Face API to get the model file
+            model_response = requests.get(model_url, stream=True)
+
+            if model_response.status_code == 200:
+                # Save the model file
+                model_file_path = os.path.join(upload_folder, 'model.pt')
+
+                with open(model_file_path, 'wb') as f:
+                    f.write(model_response.content)
+
+                print("==================upload from Hugging Face success!====================")
+            else:
+                # Handle errors
+                print("====================upload from Hugging Face error====================")
+                return "Error occurred."
+
+
 
     if error_count > 0:
         return error_count, None, None, None
