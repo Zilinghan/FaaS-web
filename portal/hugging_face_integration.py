@@ -19,10 +19,11 @@ def get_models():
     model_filter = ModelFilter(**model_filter_args)
 
     api = HfApi()
+    number_limit = 50 # the limit number of models returned
     if (author):
-        models = api.list_models(filter=model_filter, search=model_name, author=author)
+        models = api.list_models(filter=model_filter, search=model_name, author=author, limit=number_limit)
     else:
-        models = api.list_models(filter=model_filter, search=model_name)
+        models = api.list_models(filter=model_filter, search=model_name, limit=number_limit)
     
     # Return list of model names
     return jsonify([model.modelId for model in models]), 200

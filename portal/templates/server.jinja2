@@ -181,13 +181,13 @@
           <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
           {# Upload Model #}
           <div>
-            <label style="margin-right:10%">
+            <label style="margin-right:3%">
             <input type="radio" name="model-type" value="template" checked> Template Model
             </label>
-            <label style="margin-right:10%">
+            <label style="margin-right:3%">
             <input type="radio" name="model-type" value="custom"> Custom Model
             </label>
-            <label style="margin-right:10%">
+            <label style="margin-right:3%">
             <input type="radio" name="model-type" value="github"> Upload from Github
             </label>
             <label>
@@ -292,56 +292,58 @@
 
           <!-- Create the modal to upload model from hugging face -->
           <div class="modal fade" id="hfModal" tabindex="-1" role="dialog" aria-labelledby="hfModalLabel" aria-hidden="true">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h4 class="modal-title" id="hfModalLabel">Select Hugging Face Model</h4>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <form>
-                            <!-- Model Name -->
-                            <div class="form-group">
-                                <label for="hfModelInput">Model Name</label>
-                                <input type="text" class="form-control" id="hfModelInput" placeholder="Search for models...">
-                            </div>
+              <div class="modal-dialog" role="document">
+                  <div class="modal-content">
+                      <div class="modal-header">
+                          <h4 class="modal-title" id="hfModalLabel" style="padding-bottom: 15px;">Select Hugging Face Model</h4>
+                          <button type="button" class="btn btn-primary" style="position:absolute; right:50px; top:15px;" onclick="getModels()">Search</button>
+                          <button type="button" class="close" style="position:absolute; right:15px; top:25px;" data-dismiss="modal" aria-label="Close">
+                              <span aria-hidden="true">&times;</span>
+                          </button>
+                      </div>
+                      <div class="modal-body">
+                          <form>
+                              <!-- Model Name -->
+                              <div class="form-group">
+                                  <label for="hfModelInput">Model Name <span style="color: red;">*</span></label>
+                                  <input type="text" class="form-control" id="hfModelInput" placeholder="Search for models...">
+                              </div>
 
-                            <!-- Task -->
-                            <div class="form-group">
-                                <label for="hfModelTask">Task</label>
-                                <input type="text" class="form-control" id="hfModelTask" placeholder="Filter by task">
-                            </div>
+                              <!-- Task -->
+                              <div class="form-group">
+                                  <label for="hfModelTask">Task <i class="fas fa-info-circle" data-toggle="tooltip" title="The task the model is designed for. eg. Text-classification."></i></label>
+                                  <input type="text" class="form-control" id="hfModelTask" placeholder="Filter by task">
+                              </div>
 
-                            <!-- Library -->
-                            <div class="form-group">
-                                <label for="hfModelLibrary">Library</label>
-                                <input type="text" class="form-control" id="hfModelLibrary" placeholder="Filter by library">
-                            </div>
+                              <!-- Library -->
+                              <div class="form-group">
+                                  <label for="hfModelLibrary">Library <i class="fas fa-info-circle" data-toggle="tooltip" title="The machine learning library the model was built in. eg. PyTorch, TensorFlow. "></i></label>
+                                  <input type="text" class="form-control" id="hfModelLibrary" placeholder="Filter by library">
+                              </div>
 
-                            <!-- Trained Dataset -->
-                            <div class="form-group">
-                                <label for="hfModelDataset">Trained Dataset</label>
-                                <input type="text" class="form-control" id="hfModelDataset" placeholder="Filter by trained dataset">
-                            </div>
+                              <!-- Trained Dataset -->
+                              <div class="form-group">
+                                  <label for="hfModelDataset">Trained Dataset <i class="fas fa-info-circle" data-toggle="tooltip" title="The dataset the model was trained on."></i></label>
+                                  <input type="text" class="form-control" id="hfModelDataset" placeholder="Filter by trained dataset">
+                              </div>
 
-                            <!-- Author -->
-                            <div class="form-group">
-                                <label for="hfModelAuthor">Author</label>
-                                <input type="text" class="form-control" id="hfModelAuthor" placeholder="Filter by author">
-                            </div>
-                        </form>
-                        <div class="list-group" id="hfModalBody">
-                          <!-- The models will be loaded here -->
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                      <button type="button" class="btn btn-primary" onclick="getModels()">Search</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+                              <!-- Author -->
+                              <div class="form-group">
+                                  <label for="hfModelAuthor">Author <i class="fas fa-info-circle" data-toggle="tooltip" title="The author of the model."></i></label>
+                                  <input type="text" class="form-control" id="hfModelAuthor" placeholder="Filter by author">
+                              </div>
+                          </form>
+                          <div class="list-group" id="hfModalBody">
+                            <!-- The models will be loaded here -->
+                          </div>
+                      </div>
+                      <div class="modal-footer">
+                        
+                      </div>
+                  </div>
+              </div>
+          </div>
+
 
 
 
@@ -396,6 +398,9 @@
   </div> <!-- container -->
 
   <script>
+    $(document).ready(function(){
+      $('[data-toggle="tooltip"]').tooltip();   
+    });
     // Github code
     // Keep track of the path history to go back to previous folder in Github
     var pathStack = [];
