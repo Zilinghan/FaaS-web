@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    .row {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-around;
+      margin-bottom: 20px;
+    }
+    .chart {
+      width: 30%;
+      height: 400px;
+    }
+  </style>
+</head>
+<body>
+  <div id="endpoint-monitor">
+    <h1>Endpoint Monitor</h1>
+  </div>
+
+  <script>
+    var data = [
+      generateEndpointData('endpoint1'),
+      generateEndpointData('endpoint2'),
+      generateEndpointData('endpoint3')
+    ];
+
+    function generateEndpointData(id) {
+      var endpoint = { id: id };
+      var now = new Date();
+      var timeSeriesData = Array.from({length: 100}, (_, i) => {
+        return { x: new Date(now.getTime() - i * 1000), y: Math.random() * 100 };
+      }).reverse();
+
+      endpoint.cpuData = { x: timeSeriesData.map(d => d.x), y: timeSeriesData.map(d => d.y), mode: 'lines', name: 'CPU Utilization' };
+      endpoint.gpuData = { x: timeSeriesData.map(d => d.x), y: timeSeriesData.map(d => d.y), mode: 'lines', name: 'GPU Utilization' };
+      endpoint.networkSentData = { x: timeSeriesData.map(d => d.x), y: timeSeriesData.map(d => d.y), mode: 'lines', name: 'Network Sent' };
+      endpoint.networkReceivedData = { x: timeSeriesData.map(d => d.x), y: timeSeriesData.map(d => d.y), mode: 'lines', name: 'Network Received' };
+
+      return endpoint;
+    }
+
+    data.forEach(function(endpoint) {
+      var rowDiv = document.createElement('div');
+      rowDiv.className = "row";
+
+      var nameDiv = document.createElement('div');
+      nameDiv.innerHTML = '<h2>' + endpoint.id + '</h2>';
+      rowDiv.appendChild(nameDiv);
+
+      var cpuDiv = document.createElement('div');
+      cpuDiv.className = "chart";
+      cpuDiv.id = "cpu-" + endpoint.id;
+      rowDiv.appendChild(cpuDiv);
+
+      var gpuDiv = document.createElement('div');
+      gpuDiv.className = "chart";
+      gpuDiv.id = "gpu-" + endpoint.id;
+      rowDiv.appendChild(gpuDiv);
+
+      var networkDiv = document.createElement('div');
+      networkDiv.className = "chart";
+      networkDiv.id = "network-" + endpoint.id;
+      rowDiv.appendChild(networkDiv);
+
+      document.getElementById("endpoint-monitor").appendChild(rowDiv);
+
+      Plotly.newPlot(cpuDiv.id, [endpoint.cpuData], {title: 'CPU Utilization', xaxis: {title: 'Time'}, yaxis: {title: 'Utilization (%)'}});
+      Plotly.newPlot(gpuDiv.id, [endpoint.gpuData], {title: 'GPU Utilization', xaxis: {title: 'Time'}, yaxis: {title: 'Utilization (%)'}});
+      Plotly.newPlot(networkDiv.id, [endpoint.networkSentData, endpoint.networkReceivedData], {title: 'Network Utilization', xaxis: {title: 'Time'}, yaxis: {title: 'Utilization (%)'}});
+    });
+  </script>
+</body</html>

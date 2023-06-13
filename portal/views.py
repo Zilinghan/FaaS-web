@@ -1016,6 +1016,10 @@ def tensorboard_log_page(server_group_id, task_id):
         flash("Error: There is not log file for this server!")
         return redirect(request.referrer)
 
+@app.route('/resources_monitor')
+def resources_monitor():
+    return render_template('resources_monitor.jinja2')
+
 @app.errorhandler(413)
 def error413(e):
     """Error handler for uploading file exceeding the maximum size."""
