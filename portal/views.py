@@ -1016,9 +1016,82 @@ def tensorboard_log_page(server_group_id, task_id):
         flash("Error: There is not log file for this server!")
         return redirect(request.referrer)
 
+def ensure_dependencies():
+    """Ensure necessary dependencies are installed."""
+    import subprocess
+    import pkg_resources
+
+    DEPENDENCIES = [
+        'psutil',
+        'pynvml'
+    ]
+
+    installed_packages = pkg_resources.working_set
+    installed_packages_list = sorted(["%s==%s" % (i.key, i.version)
+        for i in installed_packages])
+
+    for dependency in DEPENDENCIES:
+        if dependency not in installed_packages_list:
+            subprocess.check_call(["python3", "-m", "pip", "install", dependency])
+
+def get_system_stats():
+    """Get system and network utilization statistics."""
+    ensure_dependencies()
+
+    import psutil
+    import pynvml
+
+    pynvml.nvmlInit()
+    handle = pynvml.nvmlDeviceGetHandleByIndex(0) # Assuming one GPU.
+
+    # Get CPU, memory, GPU utilization, and network stats.
+    cpu_utilization = psutil.cpu_percent()
+    memory_utilization = psutil.virtual_memory().percent
+    gpu_utilization = pynvml.nvmlDeviceGetUtilizationRates(handle).gpu
+    bytes_sent = psutil.net_io_counters().bytes_sent
+    bytes_received = psutil.net_io_counters().bytes_received
+
+    # Don't forget to shut down the NVML library.
+    pynvml.nvmlShutdown()
+
+    return {
+        "CPU utilization": cpu_utilization,
+        "Memory utilization": memory_utilization,
+        "GPU utilization": gpu_utilization,
+        "Bytes Sent": bytes_sent,
+        "Bytes Received": bytes_received
+    }
+
+
 @app.route('/resources_monitor')
 def resources_monitor():
-    return render_template('resources_monitor.jinja2')
+    endpoint_resources_data = {}
+    endpoint_status = {}
+    for key in request.args:
+        endpoint_status[request.args[key]] = EndpointStatus.UNSET.value
+    fxc = get_funcx_client(session['tokens'])
+    func_id = fxc.register_function(endpoint_test)
+    monitor_func_id = fxc.register_function(get_system_stats)
+    for endpoint_id in endpoint_status:
+        if endpoint_id == '0': continue
+        for _ in range(STATUS_CHECK_TIMES): # Wait for at most STATUS_CHECK_TIMES seconds
+            try:
+                fxc.run(endpoint_id=endpoint_id, function_id=func_id)
+                time.sleep(1)
+                try:
+                    result = fxc.get_result(monitor_func_id)
+                    if result is not None:
+                        endpoint_resources_data[endpoint_id] = result
+                        break
+                    time.sleep(1)
+                except:
+                    endpoint_resources_data[endpoint_id] = {'error': 'Failed to get result'}
+                    break
+            except funcx.errors.error_types.TaskPending: continue
+            except:
+                endpoint_status[endpoint_id] = EndpointStatus.INVALID.value
+                break
+    return render_template('resources_monitor.jinja2', data = endpoint_resources_data)
 
 @app.errorhandler(413)
 def error413(e):
