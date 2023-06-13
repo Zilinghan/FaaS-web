@@ -11,7 +11,7 @@ from portal import app
 from tensorboard import program
 from portal.decorators import authenticated
 from portal.github_integration import github_bp
-from flask import (abort, flash, redirect, render_template, request, session, url_for)
+from flask import (abort, flash, redirect, render_template, request, session, url_for, jsonify)
 from portal.utils import (EXP_DIR, FL_TAG, S3_BUCKET_NAME, \
                           get_safe_redirect, group_tagging, get_servers_clients, \
                           load_portal_client, load_group_client, \
@@ -1063,7 +1063,7 @@ def get_system_stats():
     }
 
 
-@app.route('/resources_monitor')
+@app.route('/resources_monitor_data')
 def resources_monitor():
     endpoint_resources_data = {}
     endpoint_status = {}
@@ -1079,19 +1079,32 @@ def resources_monitor():
                 fxc.run(endpoint_id=endpoint_id, function_id=func_id)
                 time.sleep(1)
                 try:
-                    result = fxc.get_result(monitor_func_id)
-                    if result is not None:
-                        endpoint_resources_data[endpoint_id] = result
-                        break
-                    time.sleep(1)
+                    task_id = fxc.run(endpoint_id=endpoint_id, function_id=monitor_func_id)
+                    for _ in range(STATUS_CHECK_TIMES):
+                        try:
+                            result = fxc.get_result(task_id)
+                            if result is not None:
+                                endpoint_resources_data[endpoint_id] = result
+                                break
+                            time.sleep(1)
+                        except funcx.errors.error_types.TaskPending:
+                            time.sleep(1)
+                            continue
+                        except:
+                            endpoint_resources_data[endpoint_id] = {'error': 'Failed to get result'}
+                            break
                 except:
-                    endpoint_resources_data[endpoint_id] = {'error': 'Failed to get result'}
+                    endpoint_resources_data[endpoint_id] = {'error': 'Failed to run monitoring function'}
                     break
             except funcx.errors.error_types.TaskPending: continue
             except:
                 endpoint_status[endpoint_id] = EndpointStatus.INVALID.value
                 break
-    return render_template('resources_monitor.jinja2', data = endpoint_resources_data)
+    return jsonify(endpoint_resources_data)
+
+@app.route('/resources_monitor')
+def resources_monitor():
+    return render_template('resources_monitor.jinja2')
 
 @app.errorhandler(413)
 def error413(e):

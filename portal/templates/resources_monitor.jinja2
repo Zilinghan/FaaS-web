@@ -21,26 +21,7 @@
   </div>
 
   <script>
-    var data = [
-      generateEndpointData('endpoint1'),
-      generateEndpointData('endpoint2'),
-      generateEndpointData('endpoint3')
-    ];
-
-    function generateEndpointData(id) {
-      var endpoint = { id: id };
-      var now = new Date();
-      var timeSeriesData = Array.from({length: 100}, (_, i) => {
-        return { x: new Date(now.getTime() - i * 1000), y: Math.random() * 100 };
-      }).reverse();
-
-      endpoint.cpuData = { x: timeSeriesData.map(d => d.x), y: timeSeriesData.map(d => d.y), mode: 'lines', name: 'CPU Utilization' };
-      endpoint.gpuData = { x: timeSeriesData.map(d => d.x), y: timeSeriesData.map(d => d.y), mode: 'lines', name: 'GPU Utilization' };
-      endpoint.networkSentData = { x: timeSeriesData.map(d => d.x), y: timeSeriesData.map(d => d.y), mode: 'lines', name: 'Network Sent' };
-      endpoint.networkReceivedData = { x: timeSeriesData.map(d => d.x), y: timeSeriesData.map(d => d.y), mode: 'lines', name: 'Network Received' };
-
-      return endpoint;
-    }
+    var endpointData = {};
 
     data.forEach(function(endpoint) {
       var rowDiv = document.createElement('div');
@@ -60,6 +41,11 @@
       gpuDiv.id = "gpu-" + endpoint.id;
       rowDiv.appendChild(gpuDiv);
 
+      var memDiv = document.createElement('div');
+      gpuDiv.className = "chart";
+      gpuDiv.id = "mem-" + endpoint.id;
+      rowDiv.appendChild(memDiv);
+
       var networkDiv = document.createElement('div');
       networkDiv.className = "chart";
       networkDiv.id = "network-" + endpoint.id;
@@ -67,9 +53,40 @@
 
       document.getElementById("endpoint-monitor").appendChild(rowDiv);
 
-      Plotly.newPlot(cpuDiv.id, [endpoint.cpuData], {title: 'CPU Utilization', xaxis: {title: 'Time'}, yaxis: {title: 'Utilization (%)'}});
-      Plotly.newPlot(gpuDiv.id, [endpoint.gpuData], {title: 'GPU Utilization', xaxis: {title: 'Time'}, yaxis: {title: 'Utilization (%)'}});
-      Plotly.newPlot(networkDiv.id, [endpoint.networkSentData, endpoint.networkReceivedData], {title: 'Network Utilization', xaxis: {title: 'Time'}, yaxis: {title: 'Utilization (%)'}});
+      Plotly.newPlot(cpuDiv.id, [endpoint.cpu_utilization], {title: 'CPU Utilization', xaxis: {title: 'Time'}, yaxis: {title: 'Utilization (%)'}});
+      Plotly.newPlot(gpuDiv.id, [endpoint.gpu_utilization], {title: 'GPU Utilization', xaxis: {title: 'Time'}, yaxis: {title: 'Utilization (%)'}});
+      Plotly.newPlot(memDiv.id, [endpoint.memory_utilization], {title: 'Memory Utilization', xaxis: {title: 'Time'}, yaxis: {title: 'Utilization (%)'}});
+      Plotly.newPlot(networkDiv.id, [endpoint.bytes_sent, endpoint.bytes_received], {title: 'Network Utilization', xaxis: {title: 'Time'}, yaxis: {title: 'Utilization (%)'}});
+    });
+
+    $(document).ready(function(){
+        function updateData() {
+            $.getJSON('/resources_monitor_data', function(data) {
+                for (var endpoint in data) {
+                    if (!endpointData.hasOwnProperty(endpoint)) {
+                        // Initialize the data array for this endpoint if it's new
+                        endpointData[endpoint] = [];
+                    }
+
+                    // Add the new datapoint
+                    endpointData[endpoint].push({
+                        timestamp: new Date(),
+                        data: data[endpoint]
+                    });
+
+                    // Remove old datapoints if there are more than 100
+                    if (endpointData[endpoint].length > 100) {
+                        endpointData[endpoint].shift();
+                    }
+                }
+
+                // Update the page with the new data here, for example:
+                updateCharts();
+            });
+        }
+
+        // Update the data every second
+        setInterval(updateData, 1000);
     });
   </script>
 </body</html>
