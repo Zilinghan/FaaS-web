@@ -11,7 +11,7 @@
       margin-bottom: 20px;
     }
     .chart {
-      width: 30%;
+      width: 22%;
       height: 400px;
     }
   </style>
@@ -19,15 +19,47 @@
 <body>
   <div id="endpoint-monitor">
     <h1>Endpoint Monitor</h1>
+    <div id="plots-container"></div>
   </div>
 
   <script>
     var client_endpoints = {{ client_endpoints|tojson|safe }};
     var client_names = {{ client_names|tojson|safe }};
 
+    function generateDivs() {
+        client_endpoints.forEach(function(endpoint, index) {
+            var endpointNameDiv = $("<h2>" + client_names[index] + "</h2>");
+            $("#plots-container").append(endpointNameDiv);
+
+            var rowDiv = $("<div class='row' id='row-" + endpoint + "'></div>");
+
+            var cpuDiv = $("<div class='chart' id='cpu-" + endpoint + "'></div>");
+            var gpuDiv = $("<div class='chart' id='gpu-" + endpoint + "'></div>");
+            var memoryDiv = $("<div class='chart' id='mem-" + endpoint + "'></div>");
+            var networkDiv = $("<div class='chart' id='network-" + endpoint + "'></div>");
+
+            rowDiv.append(cpuDiv);
+            rowDiv.append(gpuDiv);
+            rowDiv.append(memoryDiv);
+            rowDiv.append(networkDiv);
+
+            $("#plots-container").append(rowDiv);
+        });
+    }
+
+    generateDivs();
+
     var endpointData = {};
 
     function updateCharts() {
+        var layout = {
+            xaxis: {
+                title: 'Time',
+            },
+            yaxis: {
+                title: 'Utilization',
+            }
+        };
         // loop through each endpoint
         Object.keys(endpointData).forEach(function(endpoint) {
             // get the data for this endpoint
@@ -64,46 +96,61 @@
             };
 
             // update the corresponding plots with the new data
-            Plotly.update('cpu-' + endpoint, cpuData);
-            Plotly.update('gpu-' + endpoint, gpuData);
-            Plotly.update('mem-' + endpoint, memoryData);
-            Plotly.update('network-' + endpoint, networkData);
-            Plotly.update('network-' + endpoint, networkReceivedData);
+            Plotly.react('cpu-' + endpoint, [cpuData], {...layout, title: 'CPU Utilization'});
+            Plotly.react('gpu-' + endpoint, [gpuData], {...layout, title: 'GPU Utilization'});
+            Plotly.react('mem-' + endpoint, [memoryData], {...layout, title: 'Memory Utilization'});
+            Plotly.react('network-' + endpoint, [networkData, networkReceivedData], {...layout, title: 'Network Usage'});
         });
     }
 
     $(document).ready(function(){
         function updateData() {
-            $.getJSON('/resources_monitor_data', 
-              { client_endpoints: JSON.stringify(client_endpoints) }, 
-                function(data) {
-                    console.log(data)
-                    for (var endpoint in data) {
-                        if (!endpointData.hasOwnProperty(endpoint)) {
-                            // Initialize the data array for this endpoint if it's new
-                            endpointData[endpoint] = [];
-                        }
+            console.log("update")
+            $.ajax({
+                url: '/resources_monitor_data',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ client_endpoints: client_endpoints }),
+                dataType: 'json'
+              })
+            .done(function(data) {
+              console.log('Data received: ', data);
+              for (var endpoint in data) {
+                if (!endpointData.hasOwnProperty(endpoint)) {
+                    // Initialize the data array for this endpoint if it's new
+                    endpointData[endpoint] = [];
+                }
 
-                        // Add the new datapoint
-                        endpointData[endpoint].push({
-                            timestamp: new Date(),
-                            data: data[endpoint]
-                        });
+                // Add the new datapoint
+                endpointData[endpoint].push({
+                    timestamp: new Date(),
+                    data: data[endpoint]
+                });
 
-                        // Remove old datapoints if there are more than 100
-                        if (endpointData[endpoint].length > 100) {
-                            endpointData[endpoint].shift();
-                        }
-                    }
-
-                    // Update the page with the new data here, for example:
-                    updateCharts();
+                // Remove old datapoints if there are more than 100
+                if (endpointData[endpoint].length > 100) {
+                    endpointData[endpoint].shift();
+                }
               }
-            ); 
+
+              // Update the page with the new data here, for example:
+              updateCharts();
+            })
+            .fail(function(jqXHR, textStatus, errorThrown) {
+              console.log("Error: ", textStatus, errorThrown);
+            })
+            .always(function() {
+              console.log('AJAX call completed');
+            });
         }
 
-        // Update the data every 5 seconds
-        setInterval(updateData, 10000);
+        // Update the data every 10 seconds
+        var intervalId = setInterval(updateData, 10000);
+
+        window.onbeforeunload = function() {
+          console.log("Window is being closed, clearing interval");
+          clearInterval(intervalId);
+        }
     });
     </script>
 

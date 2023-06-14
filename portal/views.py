@@ -1068,35 +1068,39 @@ def get_system_stats():
     }
 
 
-@app.route('/resources_monitor_data', methods=['GET'])
+@app.route('/resources_monitor_data', methods=['GET', 'POST'])
 @authenticated
 def resources_monitor_data():
     # Retrieve the parameters and parse the JSON
-    client_endpoints = json.loads(request.args.get('client_endpoints'))
-
+    client_endpoints = request.get_json().get('client_endpoints', [])
+    if client_endpoints is None:
+        client_endpoints = []
+    print("endpoints: ", client_endpoints)
     endpoint_resources_data = {}
     endpoint_status = {}
     for endpoint_id in client_endpoints:
         endpoint_status[endpoint_id] = EndpointStatus.UNSET.value
-    print(endpoint_status)
     fxc = get_funcx_client(session['tokens'])
     func_id = fxc.register_function(endpoint_test)
     monitor_func_id = fxc.register_function(get_system_stats)
     for endpoint_id in endpoint_status:
         if endpoint_id == '0': continue
+        result_obtained = False
         for _ in range(STATUS_CHECK_TIMES): # Wait for at most STATUS_CHECK_TIMES seconds
+            print("===== check status =====")
             try:
-                fxc.run(endpoint_id="6c87988d-d067-43c9-a73f-063b51e1b33a", function_id=func_id)
-                print("active")
+                fxc.run(endpoint_id=endpoint_id, function_id=func_id)
                 time.sleep(1)
                 try:
-                    task_id = fxc.run(endpoint_id="6c87988d-d067-43c9-a73f-063b51e1b33a", function_id=monitor_func_id)
-                    for _ in range(30):
+                    task_id = fxc.run(endpoint_id=endpoint_id, function_id=monitor_func_id)
+                    for _ in range(STATUS_CHECK_TIMES):
+                        print("===== try get stats =====")
                         try:
                             result = fxc.get_result(task_id)
                             print("result:", result)
                             if result is not None:
                                 endpoint_resources_data[endpoint_id] = result
+                                result_obtained = True
                                 break
                             time.sleep(1)
                         except funcx.errors.error_types.TaskPending:
@@ -1112,7 +1116,9 @@ def resources_monitor_data():
             except:
                 endpoint_status[endpoint_id] = EndpointStatus.INVALID.value
                 break
-
+            if result_obtained:
+                break
+    print("======= return ===========")
     return jsonify(endpoint_resources_data)
 
 @app.route('/resources_monitor')
