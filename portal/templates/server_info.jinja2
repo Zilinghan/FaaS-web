@@ -11,7 +11,7 @@
     </div>
     
     <h2 class="anchored" data-anchor-id="endpoint-info-title">Endpoint Information</h2>
-    <a href="/resources_monitor" target="_blank" style="font-size: smaller;">(Resources Monitor)</a>
+    <a id="resources_monitor" target="_blank" style="font-size: smaller;">(Resources Monitor)</a>
     <section id="endpoint-information" class="level4">
       <div class="cell" data-execution_count="30">
         <div class="cell-output cell-output-display" data-execution_count="825">
@@ -333,6 +333,16 @@
       // Obtain the given endpoints to send, and generate an endpoint-name dictionary
       var client_endpoints = {{client_endpoints|safe}};
       var client_names = {{client_names|safe}}
+
+      // Pass endpoints data to monitor page
+      // Construct the URL
+      var resourcesMonitorURL = '/resources_monitor?' + 
+          'client_endpoints=' + encodeURIComponent(JSON.stringify(client_endpoints)) + 
+          '&client_names=' + encodeURIComponent(JSON.stringify(client_names));
+
+      // Set the href attribute of your link
+      document.getElementById('resources_monitor').href = resourcesMonitorURL;
+
       var sent_data= {};
       var endpoint_name_dict = {}
       for (var i = 0; i < client_endpoints.length; i++){

@@ -952,6 +952,7 @@ def status_check():
     endpoint_status = {}
     for key in request.args:
         endpoint_status[request.args[key]] = EndpointStatus.UNSET.value
+    print(endpoint_status)
     # fxc = FuncXClient()
     fxc = get_funcx_client(session['tokens'])
     func_id = fxc.register_function(endpoint_test)
@@ -1016,7 +1017,8 @@ def tensorboard_log_page(server_group_id, task_id):
         flash("Error: There is not log file for this server!")
         return redirect(request.referrer)
 
-def ensure_dependencies():
+def get_system_stats():
+    """Get system and network utilization statistics."""
     """Ensure necessary dependencies are installed."""
     import subprocess
     import pkg_resources
@@ -1034,25 +1036,28 @@ def ensure_dependencies():
         if dependency not in installed_packages_list:
             subprocess.check_call(["python3", "-m", "pip", "install", dependency])
 
-def get_system_stats():
-    """Get system and network utilization statistics."""
-    ensure_dependencies()
-
     import psutil
-    import pynvml
+    try:
+        import pynvml
 
-    pynvml.nvmlInit()
-    handle = pynvml.nvmlDeviceGetHandleByIndex(0) # Assuming one GPU.
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0) # Assuming one GPU.
 
-    # Get CPU, memory, GPU utilization, and network stats.
+        # Get GPU utilization
+        gpu_utilization = pynvml.nvmlDeviceGetUtilizationRates(handle).gpu
+
+        # Don't forget to shut down the NVML library.
+        pynvml.nvmlShutdown()
+
+    except Exception as e:
+        gpu_utilization = "N/A"
+        print(f"Error: {e}. GPU utilization will not be available.")
+
+    # Get CPU, memory, and network stats.
     cpu_utilization = psutil.cpu_percent()
     memory_utilization = psutil.virtual_memory().percent
-    gpu_utilization = pynvml.nvmlDeviceGetUtilizationRates(handle).gpu
     bytes_sent = psutil.net_io_counters().bytes_sent
-    bytes_received = psutil.net_io_counters().bytes_received
-
-    # Don't forget to shut down the NVML library.
-    pynvml.nvmlShutdown()
+    bytes_received = psutil.net_io_counters().bytes_recv
 
     return {
         "CPU utilization": cpu_utilization,
@@ -1063,12 +1068,17 @@ def get_system_stats():
     }
 
 
-@app.route('/resources_monitor_data')
-def resources_monitor():
+@app.route('/resources_monitor_data', methods=['GET'])
+@authenticated
+def resources_monitor_data():
+    # Retrieve the parameters and parse the JSON
+    client_endpoints = json.loads(request.args.get('client_endpoints'))
+
     endpoint_resources_data = {}
     endpoint_status = {}
-    for key in request.args:
-        endpoint_status[request.args[key]] = EndpointStatus.UNSET.value
+    for endpoint_id in client_endpoints:
+        endpoint_status[endpoint_id] = EndpointStatus.UNSET.value
+    print(endpoint_status)
     fxc = get_funcx_client(session['tokens'])
     func_id = fxc.register_function(endpoint_test)
     monitor_func_id = fxc.register_function(get_system_stats)
@@ -1076,13 +1086,15 @@ def resources_monitor():
         if endpoint_id == '0': continue
         for _ in range(STATUS_CHECK_TIMES): # Wait for at most STATUS_CHECK_TIMES seconds
             try:
-                fxc.run(endpoint_id=endpoint_id, function_id=func_id)
+                fxc.run(endpoint_id="6c87988d-d067-43c9-a73f-063b51e1b33a", function_id=func_id)
+                print("active")
                 time.sleep(1)
                 try:
-                    task_id = fxc.run(endpoint_id=endpoint_id, function_id=monitor_func_id)
-                    for _ in range(STATUS_CHECK_TIMES):
+                    task_id = fxc.run(endpoint_id="6c87988d-d067-43c9-a73f-063b51e1b33a", function_id=monitor_func_id)
+                    for _ in range(30):
                         try:
                             result = fxc.get_result(task_id)
+                            print("result:", result)
                             if result is not None:
                                 endpoint_resources_data[endpoint_id] = result
                                 break
@@ -1100,11 +1112,22 @@ def resources_monitor():
             except:
                 endpoint_status[endpoint_id] = EndpointStatus.INVALID.value
                 break
+
     return jsonify(endpoint_resources_data)
 
 @app.route('/resources_monitor')
 def resources_monitor():
-    return render_template('resources_monitor.jinja2')
+    client_endpoints = request.args.get('client_endpoints')
+    client_names = request.args.get('client_names')
+
+    # Because we passed the data as JSON, we need to parse it back into a Python list
+    import json
+    client_endpoints = json.loads(client_endpoints)
+    client_names = json.loads(client_names)
+
+    return render_template('resources_monitor.jinja2', 
+                       client_endpoints=client_endpoints, 
+                       client_names=client_names)
 
 @app.errorhandler(413)
 def error413(e):
