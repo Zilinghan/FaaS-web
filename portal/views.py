@@ -1085,39 +1085,27 @@ def resources_monitor_data():
     monitor_func_id = fxc.register_function(get_system_stats)
     for endpoint_id in endpoint_status:
         if endpoint_id == '0': continue
-        result_obtained = False
-        for _ in range(STATUS_CHECK_TIMES): # Wait for at most STATUS_CHECK_TIMES seconds
-            print("===== check status =====")
-            try:
-                fxc.run(endpoint_id=endpoint_id, function_id=func_id)
-                time.sleep(1)
+        try:
+            task_id = fxc.run(endpoint_id=endpoint_id, function_id=monitor_func_id)
+            for _ in range(6):
+                print("===== try get stats =====")
                 try:
-                    task_id = fxc.run(endpoint_id=endpoint_id, function_id=monitor_func_id)
-                    for _ in range(STATUS_CHECK_TIMES):
-                        print("===== try get stats =====")
-                        try:
-                            result = fxc.get_result(task_id)
-                            print("result:", result)
-                            if result is not None:
-                                endpoint_resources_data[endpoint_id] = result
-                                result_obtained = True
-                                break
-                            time.sleep(1)
-                        except funcx.errors.error_types.TaskPending:
-                            time.sleep(1)
-                            continue
-                        except:
-                            endpoint_resources_data[endpoint_id] = {'error': 'Failed to get result'}
-                            break
+                    result = fxc.get_result(task_id)
+                    print("result:", result)
+                    if result is not None:
+                        endpoint_resources_data[endpoint_id] = result
+                        break
+                    time.sleep(1)
+                except funcx.errors.error_types.TaskPending:
+                    time.sleep(1)
+                    continue
                 except:
-                    endpoint_resources_data[endpoint_id] = {'error': 'Failed to run monitoring function'}
+                    endpoint_resources_data[endpoint_id] = {'error': 'Failed to get result'}
                     break
-            except funcx.errors.error_types.TaskPending: continue
-            except:
-                endpoint_status[endpoint_id] = EndpointStatus.INVALID.value
-                break
-            if result_obtained:
-                break
+        except:
+            endpoint_resources_data[endpoint_id] = {'error': 'Failed to run monitoring function'}
+            break
+
     print("======= return ===========")
     return jsonify(endpoint_resources_data)
 
