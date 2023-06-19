@@ -4,7 +4,7 @@
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <style>
-      .row {
+      .row-container {
         display: flex;
         flex-direction: row;
         justify-content: space-around;
@@ -23,7 +23,10 @@
         width: 120px;
         height: 120px;
         animation: spin 2s linear infinite;
-        margin: 0 auto; /* Center the loader */
+        margin-left: auto; 
+        margin-right: auto;
+        margin-top: 150px;
+        margin-bottom: 80px;
       }
       @keyframes spin {
         0% { transform: rotate(0deg); }
@@ -55,7 +58,7 @@
               var endpointNameDiv = $("<h2>" + client_names[index] + "</h2>");
               $("#plots-container").append(endpointNameDiv);
 
-              var rowDiv = $("<div class='row' id='row-" + endpoint + "'></div>");
+              var rowDiv = $("<div class='row-container' id='row-" + endpoint + "'></div>");
 
               var cpuDiv = $("<div class='chart' id='cpu-" + endpoint + "'></div>");
               var gpuDiv = $("<div class='chart' id='gpu-" + endpoint + "'></div>");
@@ -72,7 +75,7 @@
               
               // Add a separator line after each endpoint (except the last one)
               if(index !== client_endpoints.length - 1) {
-                $("#plots-container").append('<hr class="col-sm-12" style="border-top: 1px solid rgba(128, 128, 128, 0.801)" width="100%">');
+                $("#plots-container").append('<hr>');
               }
           });
       }
@@ -108,7 +111,7 @@
                       size: 12,
                       color: '#000'
                   },
-                  bgcolor: '#E2E2E2',
+                  bgcolor: 'rgba(226, 226, 226, 0.5)',
                   bordercolor: '#FFFFFF',
                   borderwidth: 2
               }
@@ -195,12 +198,12 @@
                     }
                 });
 
-                // Update the page with the new data here
-                updateCharts();
-
                 // Hide the loader and show the plots container
                 $("#loader").hide();
                 $("#plots-container").show();
+
+                // Update the page with the new data here
+                updateCharts();
               })
               .fail(function(jqXHR, textStatus, errorThrown) {
                 console.log("Error: ", textStatus, errorThrown);

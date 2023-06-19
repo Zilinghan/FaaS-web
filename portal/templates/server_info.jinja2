@@ -6,12 +6,15 @@
   {%include "header.jinja2"%}
 
   <div class="container">
-    <div class="page-header">
+    <div class="page-header" style="margin-bottom: 0;">
       <h1>Federation Information</h1>
     </div>
     
-    <h2 class="anchored" data-anchor-id="endpoint-info-title">Endpoint Information</h2>
-    <a id="resources_monitor" target="_blank" style="font-size: smaller;">(Resources Monitor)</a>
+    <h2 class="anchored" data-anchor-id="endpoint-info-title" style="display: inline-block;">Endpoint Information</h2>
+    <a id="resources_monitor" target="_blank" style="display: inline-block; margin-left: 30px; margin-top: 25px; margin-bottom: 10px; font-size: small;">(Resources Monitor)</a>
+
+
+    
     <section id="endpoint-information" class="level4">
       <div class="cell" data-execution_count="30">
         <div class="cell-output cell-output-display" data-execution_count="825">
@@ -351,8 +354,7 @@
           endpoint_name_dict[client_endpoints[i]] = client_names[i];
         }
       }
-      {# console.log(endpoint_name_dict)
-      console.log(sent_data); #}
+
       // Send the endpoints for status checking
       $.ajax({
         url: '/status-check',

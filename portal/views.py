@@ -952,7 +952,6 @@ def status_check():
     endpoint_status = {}
     for key in request.args:
         endpoint_status[request.args[key]] = EndpointStatus.UNSET.value
-    print(endpoint_status)
     # fxc = FuncXClient()
     fxc = get_funcx_client(session['tokens'])
     func_id = fxc.register_function(endpoint_test)
@@ -1075,7 +1074,6 @@ def resources_monitor_data():
     client_endpoints = request.get_json().get('client_endpoints', [])
     if client_endpoints is None:
         client_endpoints = []
-    print("endpoints: ", client_endpoints)
     endpoint_resources_data = {}
     endpoint_status = {}
     for endpoint_id in client_endpoints:
@@ -1088,10 +1086,8 @@ def resources_monitor_data():
         try:
             task_id = fxc.run(endpoint_id=endpoint_id, function_id=monitor_func_id)
             for _ in range(6):
-                print("===== try get stats =====")
                 try:
                     result = fxc.get_result(task_id)
-                    print("result:", result)
                     if result is not None:
                         endpoint_resources_data[endpoint_id] = result
                         break
@@ -1106,7 +1102,6 @@ def resources_monitor_data():
             endpoint_resources_data[endpoint_id] = {'error': 'Failed to run monitoring function'}
             break
 
-    print("======= return ===========")
     return jsonify(endpoint_resources_data)
 
 @app.route('/resources_monitor')
