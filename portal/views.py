@@ -280,7 +280,16 @@ def browse_info(server_group_id=None, client_group_id=None):
                                 task_arns=task_arns, \
                                 task_names=task_names)
     if client_group_id is not None:
-        return render_template('client_info.jinja2', client_group_id=client_group_id)
+        task_info = dynamodb_get_tasks(client_group_id)
+        task_arns, task_names = ecs_parse_taskinfo(task_info)
+        task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
+        server_group = gc.get_group(client_group_id, include=["memberships"])
+        client_names, client_emails, client_orgs, client_endpoints = get_clients_information(server_group['memberships'], client_group_id)
+        return render_template('client_info.jinja2', \
+                                client_group_id=client_group_id, \
+                                task_ids=task_ids, 
+                                task_arns=task_arns, \
+                                task_names=task_names)
 
 def download_comp_report(group_id, task_ids, referrer):
     """Download comparison report for experiments in a group."""

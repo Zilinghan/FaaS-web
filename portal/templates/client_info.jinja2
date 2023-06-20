@@ -73,6 +73,62 @@
             >
           </div> #}
         </form>
+
+        <h2 class="anchored" data-anchor-id="exp-info-title">Experiment Information</h2>
+        <section id="experiment-information" class="level4">
+          <div class="button-container float-end" style="margin-top: 1.5%; margin-bottom: 1.5%">
+            <button disabled id="experiment-compare" onclick="clickCompare()">Compare</button>
+          </div>
+          <div class="cell" data-execution_count="30">
+            <div class="cell-output cell-output-display" data-execution_count="825">
+              <div class="container first-container col-sm-12 pull-left">
+                <table class="table table-condensed table-striped">
+                  <thead>
+                    <tr>
+                      <th>Experiment Name</th>
+                      <th>Experiment ID</th>
+                      <th>Config</th>
+                      <th>Log</th>
+                      <th>Report</th>
+                      <th>Tensorboard</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {%for i in range(task_ids|length)%}
+                    <tr>
+                      <td>
+                        <input type="checkbox" name="item_checkbox" value="{{ task_ids[i] }}" task-name="{{task_names[i]}}" task-arn="{{task_arns[i]}}">&nbsp;{{task_names[i]}}
+                      </td>
+                      <td>{{task_ids[i]}}</td>
+                      <td id="task_{{task_ids[i]}}_configfile">
+                        <a href="{{url_for('download_file', file_type='configuration', group_id=server_group_id, task_id=task_ids[i])}}">
+                          <img src="{{url_for('static', filename='img/config.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+                        </a>
+                      </td>
+                      <td id="task_{{task_id}}_logfile">
+                        <a href="{{url_for('download_file', file_type='log', group_id=server_group_id, task_id=task_ids[i])}}">
+                          <img src="{{url_for('static', filename='img/log.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+                        </a>
+                      </td>
+                      <td id="task_{{task_id}}_reportfile">
+                        <a href="{{url_for('download_file', file_type='report', group_id=server_group_id, task_id=task_ids[i])}}">
+                          <img src="{{url_for('static', filename='img/report.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+                        </a>
+                      </td>
+                      <td id="task_{{task_id}}_tbfile">
+                        <a href="{{url_for('tensorboard_log_page', server_group_id=server_group_id, task_id=task_ids[i])}}">
+                          <img src="{{url_for('static', filename='img/tensorboard.png')}}" style="width:20px; cursor:pointer;" id="???"/>
+                        </a>
+                      </td>
+                    </tr>
+                    {%endfor%}
+                  </tbody>
+                </table>
+              </div>
+            </div> 
+          </div>
+        </section>
+
         <div class="form-group">
           <button class="btn btn-secondary" onclick="disableBackButton()" id="client-info-page-back-btn">Back</button>
         </div>
@@ -82,6 +138,41 @@
   </div> <!-- container -->
 
   <script>
+  // Script for updating selected tasks
+  var selectedItems     = []
+  var group_id = "{{ client_group_id }}";
+
+  $('input[name="item_checkbox"]').on('change', function() {
+    // Update the selected item information
+    if ($(this).is(':checked')) {
+      selectedItems.push($(this).val());
+    } else {
+      selectedItems.splice(selectedItems.indexOf($(this).val()), 1);
+    }
+    
+    // Change the status of the action buttons according to the number of selected items
+    if (selectedItems.length == 0) {
+      document.getElementById("experiment-compare").disabled = true;
+    }
+    else if (selectedItems.length == 1) {
+      document.getElementById("experiment-compare").disabled = true;
+    }
+    else {
+      document.getElementById("experiment-compare").disabled = false;
+    }
+  });
+
+  // Compare the selected experiments
+  function clickCompare() {
+    // Convert task_ids array to a string with comma-separated ids
+    var task_ids_string = selectedItems.join(',');
+
+    // Generate URL
+    var url = '/download/comp_report/' + group_id + '?task_ids=' + task_ids_string;
+
+    var newWindow = window.open(url);
+  }
+
   function disableBackButton(){
     document.getElementById('client-info-page-back-btn').disabled = true;
     window.location.href='{{ url_for( 'dashboard') }}';
