@@ -26,6 +26,7 @@
                   <th>Organization</th>
                   <th>Email</th>
                   <th>Endpoint Status</th>
+                  <th>Monitor</th>
                 </tr>
               </thead>
               <tbody>
@@ -45,6 +46,13 @@
                     {% else %}
                       <img id="info_status_{{client_names[i]}}_{{client_endpoints[i]}}" src="{{url_for('static', filename='img/loading.gif')}}" tabindex="0" role="button" data-toggle="popover" data-trigger="focus" title="Endpoint Status" data-content="Checking the status of the client endpoint......" data-placement="left"/>
                     {% endif %}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="endpoint-info-content">
+                      <a href="#" data-endpoint="{{client_endpoints[i]}}" data-client="{{client_names[i]}}" class="monitor-icon">
+                        <img src="{{url_for('static', filename='img/monitor.svg')}}" role="button" style="cursor: pointer; width: 20px; height: 30px;" id="monitor_link_{{client_endpoints[i]}}"/>
+                      </a>
                     </div>
                   </td>
                 </tr>
@@ -332,20 +340,9 @@
         }
       })
       
-      {# Endpoint Health Status Check #}
-      // Obtain the given endpoints to send, and generate an endpoint-name dictionary
       var client_endpoints = {{client_endpoints|safe}};
-      var client_names = {{client_names|safe}}
-
-      // Pass endpoints data to monitor page
-      // Construct the URL
-      var resourcesMonitorURL = '/resources_monitor?' + 
-          'client_endpoints=' + encodeURIComponent(JSON.stringify(client_endpoints)) + 
-          '&client_names=' + encodeURIComponent(JSON.stringify(client_names));
-
-      // Set the href attribute of your link
-      document.getElementById('resources_monitor').href = resourcesMonitorURL;
-
+      var client_names = {{client_names|safe}};
+      var status = {}; // Status info
       var sent_data= {};
       var endpoint_name_dict = {}
       for (var i = 0; i < client_endpoints.length; i++){
@@ -367,18 +364,57 @@
             if (resp[endpoints[i]] == '0') {
               document.getElementById(`info_status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/inactive-hex.png')}}';
               document.getElementById(`info_status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data-content', 'The client endpoint is inactive or stopped!');
+              status[endpoints[i]] = 0;
             }
             else if (resp[endpoints[i]] == '1') {
               document.getElementById(`info_status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/set-hex.png')}}';
               document.getElementById(`info_status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data-content', 'The client endpoint is active with CPU available!'); 
+              status[endpoints[i]] = 1;
             }
             else if (resp[endpoints[i]] == '2') {
               document.getElementById(`info_status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/set-hex.png')}}';
               document.getElementById(`info_status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data-content', 'The client endpoint is active with GPU available!');
+              status[endpoints[i]] = 2;
             }
             else {
               document.getElementById(`info_status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/unset-hex.png')}}';
               document.getElementById(`info_status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data-content', 'The client endpoint is either unset or invalid!');
+              status[endpoints[i]] = 3;
+            }
+          }
+          {# Endpoint Monitor #}
+          // Obtain the given endpoints to send, and generate an endpoint-name dictionary
+          var available_endpoints = [];
+          var available_endpoints_names = [];
+          for (var i = 0; i < client_endpoints.length; i ++) {
+            if (status[client_endpoints[i]] == 1 || status[client_endpoints[i]] == 2) {
+              available_endpoints = available_endpoints.concat(client_endpoints[i]);
+              available_endpoints_names = available_endpoints_names.concat( endpoint_name_dict[client_endpoints[i]]);
+            }
+          }
+
+          // Pass endpoints data to monitor page
+          // Construct the URL
+          var resourcesMonitorURL = '/resources_monitor?' + 
+              'client_endpoints=' + encodeURIComponent(JSON.stringify(available_endpoints)) + 
+              '&client_names=' + encodeURIComponent(JSON.stringify(available_endpoints_names));
+
+          // Set the href attribute of your link
+          document.getElementById('resources_monitor').href = resourcesMonitorURL;
+          // Monitor one single endpoint
+          for (var i = 0; i < endpoints.length; i++) {
+            var linkElement = document.getElementById(`monitor_link_${endpoints[i]}`);
+            if (resp[endpoints[i]] == '0') {
+              // Here we are disabling the link if the status is '0'
+              linkElement.parentElement.href = "javascript:void(0)";
+              linkElement.style.cursor = "not-allowed";
+              linkElement.style.opacity = "0.5";
+            } else {
+              // Here we are enabling the link for all other statuses
+              linkElement.parentElement.href = "/resources_monitor?client_endpoints=" + encodeURIComponent(JSON.stringify([endpoints[i]])) + 
+                                              "&client_names=" + encodeURIComponent(JSON.stringify([endpoint_name_dict[endpoints[i]]]));
+              linkElement.style.cursor = "pointer";
+              linkElement.style.opacity = "1";
             }
           }
         }
