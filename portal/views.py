@@ -11,7 +11,7 @@ from portal import app
 from tensorboard import program
 from portal.decorators import authenticated
 from portal.github_integration import github_bp
-from flask import (abort, flash, redirect, render_template, request, session, url_for)
+from flask import (abort, flash, redirect, render_template, request, session, url_for, jsonify)
 from portal.utils import (EXP_DIR, FL_TAG, S3_BUCKET_NAME, \
                           get_safe_redirect, group_tagging, get_servers_clients, \
                           load_portal_client, load_group_client, \
@@ -1015,6 +1015,108 @@ def tensorboard_log_page(server_group_id, task_id):
     else:
         flash("Error: There is not log file for this server!")
         return redirect(request.referrer)
+
+def get_system_stats():
+    """Get system and network utilization statistics."""
+    """Ensure necessary dependencies are installed."""
+    import subprocess
+    import pkg_resources
+
+    DEPENDENCIES = [
+        'psutil',
+        'pynvml'
+    ]
+
+    installed_packages = pkg_resources.working_set
+    installed_packages_list = sorted(["%s==%s" % (i.key, i.version)
+        for i in installed_packages])
+
+    for dependency in DEPENDENCIES:
+        if dependency not in installed_packages_list:
+            subprocess.check_call(["python3", "-m", "pip", "install", dependency])
+
+    import psutil
+    try:
+        import pynvml
+
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0) # Assuming one GPU.
+
+        # Get GPU utilization
+        gpu_utilization = pynvml.nvmlDeviceGetUtilizationRates(handle).gpu
+
+        # Don't forget to shut down the NVML library.
+        pynvml.nvmlShutdown()
+
+    except Exception as e:
+        gpu_utilization = "N/A"
+        print(f"Error: {e}. GPU utilization will not be available.")
+
+    # Get CPU, memory, and network stats.
+    cpu_utilization = psutil.cpu_percent()
+    memory_utilization = psutil.virtual_memory().percent
+    bytes_sent = psutil.net_io_counters().bytes_sent
+    bytes_received = psutil.net_io_counters().bytes_recv
+
+    return {
+        "CPU utilization": cpu_utilization,
+        "Memory utilization": memory_utilization,
+        "GPU utilization": gpu_utilization,
+        "Bytes Sent": bytes_sent,
+        "Bytes Received": bytes_received
+    }
+
+
+@app.route('/resources_monitor_data', methods=['GET', 'POST'])
+@authenticated
+def resources_monitor_data():
+    # Retrieve the parameters and parse the JSON
+    client_endpoints = request.get_json().get('client_endpoints', [])
+    if client_endpoints is None:
+        client_endpoints = []
+    endpoint_resources_data = {}
+    endpoint_status = {}
+    for endpoint_id in client_endpoints:
+        endpoint_status[endpoint_id] = EndpointStatus.UNSET.value
+    fxc = get_funcx_client(session['tokens'])
+    func_id = fxc.register_function(endpoint_test)
+    monitor_func_id = fxc.register_function(get_system_stats)
+    for endpoint_id in endpoint_status:
+        if endpoint_id == '0': continue
+        try:
+            task_id = fxc.run(endpoint_id=endpoint_id, function_id=monitor_func_id)
+            for _ in range(6):
+                try:
+                    result = fxc.get_result(task_id)
+                    if result is not None:
+                        endpoint_resources_data[endpoint_id] = result
+                        break
+                    time.sleep(1)
+                except funcx.errors.error_types.TaskPending:
+                    time.sleep(1)
+                    continue
+                except:
+                    endpoint_resources_data[endpoint_id] = {'error': 'Failed to get result'}
+                    break
+        except:
+            endpoint_resources_data[endpoint_id] = {'error': 'Failed to run monitoring function'}
+            break
+
+    return jsonify(endpoint_resources_data)
+
+@app.route('/resources_monitor')
+def resources_monitor():
+    client_endpoints = request.args.get('client_endpoints')
+    client_names = request.args.get('client_names')
+
+    # Because we passed the data as JSON, we need to parse it back into a Python list
+    import json
+    client_endpoints = json.loads(client_endpoints)
+    client_names = json.loads(client_names)
+
+    return render_template('resources_monitor.jinja2', 
+                       client_endpoints=client_endpoints, 
+                       client_names=client_names)
 
 @app.errorhandler(413)
 def error413(e):
