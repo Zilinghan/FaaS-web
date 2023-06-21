@@ -456,6 +456,26 @@ def download_file(file_type="", group_id=None, task_id=None):
         flash("Sorry, this function is still not implemented!")
         return redirect(request.referrer)
 
+@app.route('/preview_file/<file_type>/<group_id>', methods=['GET'])
+@authenticated
+def preview_file(file_type="", group_id=None):
+    """
+    Download and preview different types of files.
+
+    Inputs:
+        - `file_type`: Type of the file to be loaded.
+        - `group_id`: Corresponding group ID of the required file.
+    """
+    gc      = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    my_info = gc.get_group(group_id, include=['my_memberships'])['my_memberships'][0]
+    user_id = my_info['identity_id']
+    if file_type == "dataloader" and group_id is not None:
+        # Instead of redirecting to the download link, download the file server-side
+        file_url = s3_get_download_link(S3_BUCKET_NAME, f'{group_id}/{user_id}/dataloader.py')
+        response = requests.get(file_url)
+        # Assuming it's a text file, return its content
+        return response.text
+
 @app.route('/get-client-info', methods=['GET'])
 @authenticated
 def get_client_info():
