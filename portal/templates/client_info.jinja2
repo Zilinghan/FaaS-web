@@ -110,22 +110,22 @@
                       </td>
                       <td>{{task_ids[i]}}</td>
                       <td id="task_{{task_ids[i]}}_configfile">
-                        <a href="{{url_for('download_file', file_type='configuration', group_id=server_group_id, task_id=task_ids[i])}}">
+                        <a href="{{url_for('download_file', file_type='configuration', group_id=client_group_id, task_id=task_ids[i])}}">
                           <img src="{{url_for('static', filename='img/config.png')}}" style="width:25px; cursor:pointer;" id="???"/>
                         </a>
                       </td>
                       <td id="task_{{task_id}}_logfile">
-                        <a href="{{url_for('download_file', file_type='log', group_id=server_group_id, task_id=task_ids[i])}}">
+                        <a href="{{url_for('download_file', file_type='log', group_id=client_group_id, task_id=task_ids[i])}}">
                           <img src="{{url_for('static', filename='img/log.png')}}" style="width:25px; cursor:pointer;" id="???"/>
                         </a>
                       </td>
                       <td id="task_{{task_id}}_reportfile">
-                        <a href="{{url_for('download_file', file_type='report', group_id=server_group_id, task_id=task_ids[i])}}">
+                        <a href="{{url_for('download_file', file_type='report', group_id=client_group_id, task_id=task_ids[i])}}">
                           <img src="{{url_for('static', filename='img/report.png')}}" style="width:25px; cursor:pointer;" id="???"/>
                         </a>
                       </td>
                       <td id="task_{{task_id}}_tbfile">
-                        <a href="{{url_for('tensorboard_log_page', server_group_id=server_group_id, task_id=task_ids[i])}}">
+                        <a href="{{url_for('tensorboard_log_page', server_group_id=client_group_id, task_id=task_ids[i])}}">
                           <img src="{{url_for('static', filename='img/tensorboard.png')}}" style="width:20px; cursor:pointer;" id="???"/>
                         </a>
                       </td>
