@@ -6,10 +6,10 @@
   {%include "header.jinja2"%}
   <div class="container">
     <div class="row">
-      <div class="page-header col-md-6 col-md-offset-3">
+      <div class="page-header col-md-8 col-md-offset-2">
         <h1>Site Information</h1>
       </div>
-      <div class="col-md-6 col-md-offset-3">
+      <div class="col-md-8 col-md-offset-2">
         <form role="presentation">
           <div class="form-group-inline">
             <label>Endpoint ID</label>
@@ -46,7 +46,7 @@
             <div style="text-align: right;">
               <button id="preview-toggle" onclick="togglePreview(event)" style="margin-top: 1em;">Show More</button>
             </div>
-            <pre id="file-preview" style="max-height: 8em; overflow: auto; white-space: pre-wrap; margin-top: 1em; display: none;">
+            <pre id="file-preview" style="max-height: 8em; overflow: auto; white-space: pre-wrap; margin-top: 1em; display: none; width: 100%">
                 <code class="python hljs" id="preview-content">
                     {{ file_content | safe }}
                 </code>
