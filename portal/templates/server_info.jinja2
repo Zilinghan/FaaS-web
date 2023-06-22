@@ -316,6 +316,12 @@
       window.location.href='{{ url_for( 'dashboard') }}';
     }
 
+    // Modify the default status of the link to resources monitor
+    var linkElement = document.getElementById('resources_monitor');
+    linkElement.style.cursor = "default";   // Cursor does not change on hover
+    linkElement.style.color = "grey";       // Change link color to grey
+    linkElement.style.textDecoration = "none"; // Remove underline
+
     // Check the endpoint status
     $(document).ready(function() {
       $(function () {
@@ -395,31 +401,36 @@
               '&client_names=' + encodeURIComponent(JSON.stringify(available_endpoints_names));
 
           // Set the href attribute of your link
-          document.getElementById('resources_monitor').href = resourcesMonitorURL;
+          linkElement.href = resourcesMonitorURL;
+          linkElement.style.cursor = "pointer";  // Cursor changes to pointer on hover
+          linkElement.style.color = "black";     // Change link color back to black
+          linkElement.style.textDecoration = "underline"; // Add underline
 
           // Monitor one single endpoint
           for (var i = 0; i < endpoints.length; i++) {
-            var linkElement = document.getElementById(`monitor_link_${endpoints[i]}`);
-            if (resp[endpoints[i]] == '0') {
-              // Keep the link disabled if the status is '0'
-              linkElement.parentElement.href = "javascript:void(0)";
-              linkElement.style.cursor = "not-allowed";
-              linkElement.style.opacity = "0.5";
-            } else {
-              // Enable the link for all other statuses
-              var monitorUrl = "/resources_monitor?client_endpoints=" + encodeURIComponent(JSON.stringify([endpoints[i]])) + 
-                              "&client_names=" + encodeURIComponent(JSON.stringify([endpoint_name_dict[endpoints[i]]]));
+            (function(i) {  // Added IIFE
+              var linkElement = document.getElementById(`monitor_link_${endpoints[i]}`);
+              if (resp[endpoints[i]] == '0') {
+                // Keep the link disabled if the status is '0'
+                linkElement.parentElement.href = "javascript:void(0)";
+                linkElement.style.cursor = "not-allowed";
+                linkElement.style.opacity = "0.5";
+              } else {
+                // Enable the link for all other statuses
+                var monitorUrl = "/resources_monitor?client_endpoints=" + encodeURIComponent(JSON.stringify([endpoints[i]])) + 
+                                "&client_names=" + encodeURIComponent(JSON.stringify([endpoint_name_dict[endpoints[i]]]));
 
-              // bind onclick event to open the link in a new window
-              linkElement.parentElement.href = "javascript:void(0)";  // Set the href to prevent default link navigation
-              linkElement.parentElement.onclick = function() {
-                window.open(monitorUrl, '_blank');
-                return false;
-              };
-              
-              linkElement.style.cursor = "pointer";
-              linkElement.style.opacity = "1";
-            }
+                // bind onclick event to open the link in a new window
+                linkElement.parentElement.href = "javascript:void(0)";  // Set the href to prevent default link navigation
+                linkElement.parentElement.onclick = function() {
+                  window.open(monitorUrl, '_blank');
+                  return false;
+                };
+
+                linkElement.style.cursor = "pointer";
+                linkElement.style.opacity = "1";
+              }
+            })(i);  // Execute the function immediately with `i` as argument
           }
         }
       });  
