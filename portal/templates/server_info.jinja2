@@ -2,6 +2,19 @@
 
 {%block title%}Federation Info{%endblock%}
 
+<head>
+    <style>
+    .status-bubble {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-left: 5px;
+      background-color: gray;  // Default color
+    }
+    </style>
+</head>
+
 {%block body%}
   {%include "header.jinja2"%}
 
@@ -27,6 +40,7 @@
                   <th>Email</th>
                   <th>Endpoint Status</th>
                   <th>Monitor</th>
+                  <th>Update</th>
                 </tr>
               </thead>
               <tbody>
@@ -52,6 +66,14 @@
                     <div class="endpoint-info-content">
                       <a href="javascript:void(0);" data-endpoint="{{client_endpoints[i]}}" data-client="{{client_names[i]}}" class="monitor-icon">
                         <img src="{{url_for('static', filename='img/monitor.svg')}}" role="button" style="cursor: not-allowed; opacity: 0.5; width: 20px; height: 30px;" id="monitor_link_{{client_endpoints[i]}}"/>
+                      </a>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="endpoint-info-content">
+                      <a href="javascript:void(0);" data-endpoint="{{client_endpoints[i]}}" data-client="{{client_names[i]}}" class="update-icon">
+                        <img src="{{url_for('static', filename='img/update.svg')}}" role="button" style="cursor: not-allowed; opacity: 0.5; width: 20px; height: 30px;" id="update_icon_{{client_endpoints[i]}}"/>
+                        <span id="update_bubble_{{client_endpoints[i]}}" class="status-bubble"></span>
                       </a>
                     </div>
                   </td>
@@ -429,6 +451,49 @@
 
                 linkElement.style.cursor = "pointer";
                 linkElement.style.opacity = "1";
+              }
+            })(i);  // Execute the function immediately with `i` as argument
+          }
+
+          // Update client-side code for one single endpoint
+          for (var i = 0; i < endpoints.length; i++) {
+            (function(i) {  // Added IIFE
+              var iconElement = document.getElementById(`update_icon_${endpoints[i]}`);
+              var bubbleElement = document.getElementById(`update_bubble_${endpoints[i]}`);
+
+              if (resp[endpoints[i]] == '0') {
+                // Keep the icon disabled if the status is '0'
+                iconElement.style.cursor = "not-allowed";
+                iconElement.style.opacity = "0.5";
+                bubbleElement.style.backgroundColor = "gray";  // Gray bubble for unknown status
+              } else {
+                // Enable the icon for all other statuses
+                iconElement.style.cursor = "pointer";
+                iconElement.style.opacity = "1";
+
+                // Bind click event to trigger the update function
+                iconElement.onclick = function() {
+                  $.ajax({
+                    url: '/update_client_code',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ 'client_endpoints': [endpoints[i]] }),
+                    success: function(resp) {
+                      console.log('Response from server:', resp);
+                      if (resp[endpoints[i]]) {
+                        // Update was successful
+                        bubbleElement.style.backgroundColor = "green";  // Green bubble for success
+                      } else {
+                        // Update failed
+                        bubbleElement.style.backgroundColor = "red";  // Red bubble for failure
+                      }
+                    },
+                    error: function(err) {
+                      console.log('Error:', err);
+                      bubbleElement.style.backgroundColor = "gray";  // Gray bubble for network error
+                    }
+                  });
+                };
               }
             })(i);  // Execute the function immediately with `i` as argument
           }

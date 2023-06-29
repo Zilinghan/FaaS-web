@@ -1095,7 +1095,6 @@ def get_system_stats():
         "Bytes Received": bytes_received
     }
 
-
 @app.route('/resources_monitor_data', methods=['GET', 'POST'])
 @authenticated
 def resources_monitor_data():
@@ -1108,7 +1107,6 @@ def resources_monitor_data():
     for endpoint_id in client_endpoints:
         endpoint_status[endpoint_id] = EndpointStatus.UNSET.value
     fxc = get_funcx_client(session['tokens'])
-    func_id = fxc.register_function(endpoint_test)
     monitor_func_id = fxc.register_function(get_system_stats)
     for endpoint_id in endpoint_status:
         if endpoint_id == '0': continue
@@ -1146,6 +1144,56 @@ def resources_monitor():
     return render_template('resources_monitor.jinja2', 
                        client_endpoints=client_endpoints, 
                        client_names=client_names)
+
+def update_client():
+    """Update client code"""
+    import subprocess
+    result = subprocess.run(['git', 'pull', 'origin', 'funcx'], capture_output=True, text=True)
+    return {'returncode': result.returncode, 'stdout': result.stdout, 'stderr': result.stderr}
+
+@app.route('/update_client_code', methods=['GET', 'POST'])
+@authenticated
+def update_client_code():
+    # Retrieve the parameters and parse the JSON
+    client_endpoints = request.get_json().get('client_endpoints', [])
+    if client_endpoints is None:
+        client_endpoints = []
+    update_results = {}
+    for endpoint_id in client_endpoints:
+        update_results[endpoint_id] = False
+    fxc = get_funcx_client(session['tokens'])
+    update_func_id = fxc.register_function(update_client)
+    for endpoint_id in update_results:
+        if endpoint_id == '0': continue
+        try:
+            task_id = fxc.run(endpoint_id=endpoint_id, function_id=update_func_id)
+            for _ in range(6):
+                try:
+                    result = fxc.get_result(task_id)
+                    print("===================result is: ", result)
+                    if result is not None:
+                        update_results[endpoint_id] = True
+                        break
+                    else:
+                        task_status = fxc.get_task(task_id)
+                        if task_status['pending']:
+                            print('Task is still pending.')
+                        elif task_status['status'] == 'FAILED':
+                            print('Task failed. Exception:', task_status['exception'])
+                        else:
+                            print('Task completed but did not return a result.')
+                    time.sleep(1)
+                except funcx.errors.error_types.TaskPending:
+                    time.sleep(1)
+                    continue
+                except:
+                    update_results[endpoint_id] = False
+                    break
+        except:
+            update_results[endpoint_id] = False
+            break
+
+    return jsonify(update_results)
 
 @app.errorhandler(413)
 def error413(e):
