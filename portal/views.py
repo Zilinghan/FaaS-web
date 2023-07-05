@@ -222,6 +222,7 @@ def get_clients_information(members, group_id):
         else:
             user_endpoints.append('0')
             user_gitpaths.append('undefined')
+    print(user_endpoints, user_gitpaths)
     return user_names, user_emails, user_orgs, user_endpoints, user_gitpaths
 
 @app.route('/browse/server/<server_group_id>', methods=['GET'])
@@ -1181,6 +1182,7 @@ def update_client_code():
     if client_paths is None:
         client_paths = []
     update_results = {}
+    print(client_paths)
     for endpoint_id in client_endpoints:
         if endpoint_id == '0':
             continue
@@ -1191,7 +1193,7 @@ def update_client_code():
         endpoint_id = client_endpoints[i]
         endpoint_path = client_paths[i]
         try:
-            task_id = fxc.run(endpoint_id=endpoint_id, function_id=update_func_id, args=[endpoint_path])
+            task_id = fxc.run(endpoint_path, endpoint_id=endpoint_id, function_id=update_func_id)
             for _ in range(6):
                 try:
                     result = fxc.get_result(task_id)

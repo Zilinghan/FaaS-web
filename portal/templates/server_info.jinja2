@@ -364,7 +364,14 @@
           endpoint_name_dict[client_endpoints[i]] = client_names[i];
         }
       }
+
       var client_paths = {{client_paths|safe}};
+      var endpoint_path_dict = {}
+      for (var i = 0; i < client_endpoints.length; i ++) {
+        if (client_endpoints[i] != '0') {
+          endpoint_path_dict[client_endpoints[i]] = client_paths[i]
+        }
+      }
 
       // Send the endpoints for status checking
       $.ajax({
@@ -399,7 +406,7 @@
           for (var i = 0; i < endpoints.length; i ++) {
             if (resp[endpoints[i]] == '1' || resp[endpoints[i]] == '2') {
               available_endpoints = available_endpoints.concat(endpoints[i]);
-              available_endpoints_names = available_endpoints_names.concat( endpoint_name_dict[endpoints[i]]);
+              available_endpoints_names = available_endpoints_names.concat(endpoint_name_dict[endpoints[i]]);
             }
           }
 
@@ -463,7 +470,7 @@
                     url: '/update_client_code',
                     method: 'POST',
                     contentType: 'application/json',
-                    data: JSON.stringify({ 'client_endpoints': [endpoints[i]], 'client_paths': [client_paths[i]] }),
+                    data: JSON.stringify({ 'client_endpoints': [endpoints[i]], 'client_paths': [endpoint_path_dict[endpoints[i]]] }),
                     success: function(resp) {
                       console.log('Response from server:', resp);
                       if (resp[endpoints[i]].returncode == 0) {
