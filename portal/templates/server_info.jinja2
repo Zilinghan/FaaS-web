@@ -2,19 +2,6 @@
 
 {%block title%}Federation Info{%endblock%}
 
-<head>
-    <style>
-    .status-bubble {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      margin-left: 5px;
-      background-color: gray;  // Default color
-    }
-    </style>
-</head>
-
 {%block body%}
   {%include "header.jinja2"%}
 
@@ -377,6 +364,7 @@
           endpoint_name_dict[client_endpoints[i]] = client_names[i];
         }
       }
+      var client_paths = {{client_paths|safe}};
 
       // Send the endpoints for status checking
       $.ajax({
@@ -458,13 +446,11 @@
           for (var i = 0; i < endpoints.length; i++) {
             (function(i) {  // Added IIFE
               var iconElement = document.getElementById(`update_icon_${endpoints[i]}`);
-              var bubbleElement = document.getElementById(`update_bubble_${endpoints[i]}`);
 
               if (resp[endpoints[i]] == '0') {
                 // Keep the icon disabled if the status is '0'
                 iconElement.style.cursor = "not-allowed";
                 iconElement.style.opacity = "0.5";
-                bubbleElement.style.backgroundColor = "gray";  // Gray bubble for unknown status
               } else {
                 // Enable the icon for all other statuses
                 iconElement.style.cursor = "pointer";
@@ -472,41 +458,46 @@
 
                 // Bind click event to trigger the update function
                 iconElement.onclick = function() {
-                    $.ajax({
-                        url: '/update_client_code',
-                        method: 'POST',
-                        contentType: 'application/json',
-                        data: JSON.stringify({ 'client_endpoints': [endpoints[i]] }),
-                        success: function(resp) {
-                            console.log('Response from server:', resp);
-                            if (resp[endpoints[i]].returncode == 0) {
-                                // Update was successful
-                                iconElement.setAttribute("title", "Update Successful!");
-                                iconElement.setAttribute("data-original-title", "Update Successful!");
-                            } else {
-                                // Update failed
-                                iconElement.setAttribute("title", "Update Failed! Error: " + resp[endpoints[i]].stderr);
-                                iconElement.setAttribute("data-original-title", "Update Failed! Error: " + resp[endpoints[i]].stderr);
-                            }
-                            $(iconElement).tooltip('show');  // Show the tooltip
+                  iconElement.classList.add("update-icon-spinning"); // Start spinning
+                  $.ajax({
+                    url: '/update_client_code',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ 'client_endpoints': [endpoints[i]], 'client_paths': [client_paths[i]] }),
+                    success: function(resp) {
+                      console.log('Response from server:', resp);
+                      if (resp[endpoints[i]].returncode == 0) {
+                        // Update was successful
+                        iconElement.setAttribute("title", "Update Successful!");
+                        iconElement.setAttribute("data-original-title", "Update Successful!");
+                      } else {
+                        // Update failed
+                        iconElement.setAttribute("title", "Update Failed! Error: " + resp[endpoints[i]].stderr);
+                        iconElement.setAttribute("data-original-title", "Update Failed! Error: " + resp[endpoints[i]].stderr);
+                      }
+                      $(iconElement).tooltip('show');  // Show the tooltip
 
-                            // Set a timeout to hide the tooltip after 3 seconds
-                            setTimeout(function() {
-                                $(iconElement).tooltip('hide');
-                            }, 3000);
-                        },
-                        error: function(err) {
-                            console.log('Error:', err);
-                            iconElement.setAttribute("title", "Network Error!");
-                            iconElement.setAttribute("data-original-title", "Network Error!");
-                            $(iconElement).tooltip('show');  // Show the tooltip
+                      // Set a timeout to hide the tooltip after 3 seconds
+                      setTimeout(function() {
+                        $(iconElement).tooltip('hide');
+                      }, 3000);
 
-                            // Set a timeout to hide the tooltip after 3 seconds
-                            setTimeout(function() {
-                                $(iconElement).tooltip('hide');
-                            }, 3000);
-                        }
-                    });
+                      iconElement.classList.remove("update-icon-spinning"); // Stop spinning
+                    },
+                    error: function(err) {
+                      console.log('Error:', err);
+                      iconElement.setAttribute("title", "Network Error!");
+                      iconElement.setAttribute("data-original-title", "Network Error!");
+                      $(iconElement).tooltip('show');  // Show the tooltip
+
+                      // Set a timeout to hide the tooltip after 3 seconds
+                      setTimeout(function() {
+                        $(iconElement).tooltip('hide');
+                      }, 3000);
+
+                      iconElement.classList.remove("update-icon-spinning"); // Stop spinning
+                    }
+                  });
                 };
               }
             })(i);  // Execute the function immediately with `i` as argument

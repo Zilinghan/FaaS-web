@@ -178,7 +178,7 @@ def get_clients_information(members, group_id):
         - `user_orgs`: list of organizations of group members
         - `user_endpoint`: list of funcx endpoints provided by group members
     """
-    user_names, user_emails, user_orgs, user_endpoints = [], [], [], []
+    user_names, user_emails, user_orgs, user_endpoints, user_gitpaths = [], [], [], [], []
     for member in members:
         if member['status'] != 'active': continue
         # Obtain user information
@@ -213,10 +213,16 @@ def get_clients_information(members, group_id):
             with open(os.path.join(client_config_folder, 'client.yaml')) as f:
                 data = yaml.safe_load(f)
             user_endpoints.append(data['client']['endpoint_id'])
+            gitpath = data['client'].get('path_to_git_dir')
+            if gitpath == None:
+                user_gitpaths.append("null")
+            else:
+                user_gitpaths.append(gitpath)
             os.remove(os.path.join(client_config_folder, 'client.yaml'))
         else:
             user_endpoints.append('0')
-    return user_names, user_emails, user_orgs, user_endpoints
+            user_gitpaths.append('undefined')
+    return user_names, user_emails, user_orgs, user_endpoints, user_gitpaths
 
 @app.route('/browse/server/<server_group_id>', methods=['GET'])
 @app.route('/browse/client/<client_group_id>', methods=['GET'])
@@ -236,7 +242,7 @@ def browse_config(server_group_id=None, client_group_id=None):
     
     if server_group_id is not None:
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_clients_information(server_group['memberships'], server_group_id)
+        client_names, client_emails, client_orgs, client_endpoints, client_paths = get_clients_information(server_group['memberships'], server_group_id)
         return render_template('server.jinja2', \
                                server_group_id=server_group_id, \
                                client_names=client_names, \
@@ -269,7 +275,7 @@ def browse_info(server_group_id=None, client_group_id=None):
         task_arns, task_names = ecs_parse_taskinfo(task_info)
         task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_clients_information(server_group['memberships'], server_group_id)
+        client_names, client_emails, client_orgs, client_endpoints, client_paths = get_clients_information(server_group['memberships'], server_group_id)
         return render_template('server_info.jinja2', \
                                 server_group_id=server_group_id, \
                                 client_names=client_names, \
@@ -278,7 +284,8 @@ def browse_info(server_group_id=None, client_group_id=None):
                                 client_orgs=client_orgs, \
                                 task_ids=task_ids, \
                                 task_arns=task_arns, \
-                                task_names=task_names)
+                                task_names=task_names, \
+                                client_paths=client_paths)
     if client_group_id is not None:
         task_info = dynamodb_get_tasks(client_group_id)
         task_arns, task_names = ecs_parse_taskinfo(task_info)
@@ -1145,13 +1152,18 @@ def resources_monitor():
                        client_endpoints=client_endpoints, 
                        client_names=client_names)
 
-def update_client():
+def update_client(path):
     """Update client code"""
     import subprocess
     import os
 
-    # TODO: read filepath from ?
-    os.chdir("/u/zl52/projects/FaaS")
+    if (path == "null"):
+        return {'returncode': -1, 'stdout': '', 'stderr': "You haven't set the path"}
+
+    if os.path.isdir(path):
+        os.chdir(path)
+    else:
+        return {'returncode': -1, 'stdout': '', 'stderr': 'Path does not exist or is not a directory'}
 
     result = subprocess.run(['git', 'pull', 'origin', 'funcx'], capture_output=True, text=True)
     return {'returncode': result.returncode, 'stdout': result.stdout, 'stderr': result.stderr}
@@ -1164,6 +1176,9 @@ def update_client_code():
     client_endpoints = request.get_json().get('client_endpoints', [])
     if client_endpoints is None:
         client_endpoints = []
+    client_paths = request.get_json().get('client_paths', [])
+    if client_paths is None:
+        client_paths = []
     update_results = {}
     for endpoint_id in client_endpoints:
         if endpoint_id == '0':
@@ -1171,9 +1186,11 @@ def update_client_code():
         update_results[endpoint_id] = {'returncode': -1, 'stdout': '', 'stderr': 'Initialization state'}
     fxc = get_funcx_client(session['tokens'])
     update_func_id = fxc.register_function(update_client)
-    for endpoint_id in update_results:
+    for i in range(len(update_results)):
+        endpoint_id = client_endpoints[i]
+        endpoint_path = client_paths[i]
         try:
-            task_id = fxc.run(endpoint_id=endpoint_id, function_id=update_func_id)
+            task_id = fxc.run(endpoint_id=endpoint_id, function_id=update_func_id, args=[endpoint_path])
             for _ in range(6):
                 try:
                     result = fxc.get_result(task_id)
