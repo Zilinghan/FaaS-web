@@ -71,9 +71,8 @@
                   </td>
                   <td>
                     <div class="endpoint-info-content">
-                      <a href="javascript:void(0);" data-endpoint="{{client_endpoints[i]}}" data-client="{{client_names[i]}}" class="update-icon">
+                      <a href="javascript:void(0);" data-endpoint="{{client_endpoints[i]}}" data-client="{{client_names[i]}}" class="update-icon" data-toggle="tooltip" title="">
                         <img src="{{url_for('static', filename='img/update.svg')}}" role="button" style="cursor: not-allowed; opacity: 0.5; width: 20px; height: 30px;" id="update_icon_{{client_endpoints[i]}}"/>
-                        <span id="update_bubble_{{client_endpoints[i]}}" class="status-bubble"></span>
                       </a>
                     </div>
                   </td>
@@ -473,26 +472,41 @@
 
                 // Bind click event to trigger the update function
                 iconElement.onclick = function() {
-                  $.ajax({
-                    url: '/update_client_code',
-                    method: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({ 'client_endpoints': [endpoints[i]] }),
-                    success: function(resp) {
-                      console.log('Response from server:', resp);
-                      if (resp[endpoints[i]]) {
-                        // Update was successful
-                        bubbleElement.style.backgroundColor = "green";  // Green bubble for success
-                      } else {
-                        // Update failed
-                        bubbleElement.style.backgroundColor = "red";  // Red bubble for failure
-                      }
-                    },
-                    error: function(err) {
-                      console.log('Error:', err);
-                      bubbleElement.style.backgroundColor = "gray";  // Gray bubble for network error
-                    }
-                  });
+                    $.ajax({
+                        url: '/update_client_code',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ 'client_endpoints': [endpoints[i]] }),
+                        success: function(resp) {
+                            console.log('Response from server:', resp);
+                            if (resp[endpoints[i]].returncode == 0) {
+                                // Update was successful
+                                iconElement.setAttribute("title", "Update Successful!");
+                                iconElement.setAttribute("data-original-title", "Update Successful!");
+                            } else {
+                                // Update failed
+                                iconElement.setAttribute("title", "Update Failed! Error: " + resp[endpoints[i]].stderr);
+                                iconElement.setAttribute("data-original-title", "Update Failed! Error: " + resp[endpoints[i]].stderr);
+                            }
+                            $(iconElement).tooltip('show');  // Show the tooltip
+
+                            // Set a timeout to hide the tooltip after 3 seconds
+                            setTimeout(function() {
+                                $(iconElement).tooltip('hide');
+                            }, 3000);
+                        },
+                        error: function(err) {
+                            console.log('Error:', err);
+                            iconElement.setAttribute("title", "Network Error!");
+                            iconElement.setAttribute("data-original-title", "Network Error!");
+                            $(iconElement).tooltip('show');  // Show the tooltip
+
+                            // Set a timeout to hide the tooltip after 3 seconds
+                            setTimeout(function() {
+                                $(iconElement).tooltip('hide');
+                            }, 3000);
+                        }
+                    });
                 };
               }
             })(i);  // Execute the function immediately with `i` as argument

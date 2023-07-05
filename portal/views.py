@@ -1148,52 +1148,57 @@ def resources_monitor():
 def update_client():
     """Update client code"""
     import subprocess
+    import os
+
+    # TODO: read filepath from ?
+    os.chdir("/u/zl52/projects/FaaS")
+
     result = subprocess.run(['git', 'pull', 'origin', 'funcx'], capture_output=True, text=True)
     return {'returncode': result.returncode, 'stdout': result.stdout, 'stderr': result.stderr}
 
 @app.route('/update_client_code', methods=['GET', 'POST'])
 @authenticated
 def update_client_code():
+    """Update client-side code by letting the client run git pull in the git directory"""
     # Retrieve the parameters and parse the JSON
     client_endpoints = request.get_json().get('client_endpoints', [])
     if client_endpoints is None:
         client_endpoints = []
     update_results = {}
     for endpoint_id in client_endpoints:
-        update_results[endpoint_id] = False
+        if endpoint_id == '0':
+            continue
+        update_results[endpoint_id] = {'returncode': -1, 'stdout': '', 'stderr': 'Initialization state'}
     fxc = get_funcx_client(session['tokens'])
     update_func_id = fxc.register_function(update_client)
     for endpoint_id in update_results:
-        if endpoint_id == '0': continue
         try:
             task_id = fxc.run(endpoint_id=endpoint_id, function_id=update_func_id)
             for _ in range(6):
                 try:
                     result = fxc.get_result(task_id)
-                    print("===================result is: ", result)
                     if result is not None:
-                        update_results[endpoint_id] = True
-                        break
+                        update_results[endpoint_id] = {'returncode': result['returncode'], 'stdout': result['stdout'], 'stderr': result['stderr']}
                     else:
                         task_status = fxc.get_task(task_id)
                         if task_status['pending']:
-                            print('Task is still pending.')
+                            update_results[endpoint_id]['stderr'] = 'Task is still pending.'
                         elif task_status['status'] == 'FAILED':
-                            print('Task failed. Exception:', task_status['exception'])
+                            update_results[endpoint_id]['stderr'] = 'Task failed. Exception: ' + task_status['exception']
                         else:
-                            print('Task completed but did not return a result.')
-                    time.sleep(1)
+                            update_results[endpoint_id]['stderr'] = 'Task completed but did not return a result.'
                 except funcx.errors.error_types.TaskPending:
+                    update_results[endpoint_id]['stderr'] = 'Task is still pending.'
+                except Exception as e:
+                    print(f"Caught an exception: {e}")
+                    update_results[endpoint_id] = {'returncode': -1, 'stdout': '', 'stderr': str(e)}
+                finally:
                     time.sleep(1)
-                    continue
-                except:
-                    update_results[endpoint_id] = False
-                    break
-        except:
-            update_results[endpoint_id] = False
-            break
-
+        except Exception as e:
+            print(f"Caught an exception: {e}")
+            update_results[endpoint_id] = {'returncode': -1, 'stdout': '', 'stderr': str(e)}
     return jsonify(update_results)
+
 
 @app.errorhandler(413)
 def error413(e):
