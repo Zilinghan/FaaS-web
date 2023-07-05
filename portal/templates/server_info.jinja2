@@ -477,10 +477,10 @@
                       }
                       $(iconElement).tooltip('show');  // Show the tooltip
 
-                      // Set a timeout to hide the tooltip after 3 seconds
+                      // Set a timeout to hide the tooltip after 5 seconds
                       setTimeout(function() {
                         $(iconElement).tooltip('hide');
-                      }, 3000);
+                      }, 5000);
 
                       iconElement.classList.remove("update-icon-spinning"); // Stop spinning
                     },
@@ -490,10 +490,10 @@
                       iconElement.setAttribute("data-original-title", "Network Error!");
                       $(iconElement).tooltip('show');  // Show the tooltip
 
-                      // Set a timeout to hide the tooltip after 3 seconds
+                      // Set a timeout to hide the tooltip after 5 seconds
                       setTimeout(function() {
                         $(iconElement).tooltip('hide');
-                      }, 3000);
+                      }, 5000);
 
                       iconElement.classList.remove("update-icon-spinning"); // Stop spinning
                     }

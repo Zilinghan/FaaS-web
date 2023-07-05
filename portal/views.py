@@ -291,7 +291,7 @@ def browse_info(server_group_id=None, client_group_id=None):
         task_arns, task_names = ecs_parse_taskinfo(task_info)
         task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
         server_group = gc.get_group(client_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_clients_information(server_group['memberships'], client_group_id)
+        client_names, client_emails, client_orgs, client_endpoints, client_paths = get_clients_information(server_group['memberships'], client_group_id)
         return render_template('client_info.jinja2', \
                                 client_group_id=client_group_id, \
                                 task_ids=task_ids, 
@@ -566,6 +566,7 @@ def upload_client_config(client_group_id):
     client_config['client']['device'] = request.form['device']
     client_config['client']['endpoint_id'] = request.form['endpoint_id']
     client_config['client']['output_dir'] = 'output' # the default name for output is output
+    client_config['client']['path_to_git_dir'] = request.form['git-repo-path']
 
     with open(os.path.join(upload_folder, 'client.yaml'), 'w') as f:
         yaml.dump(client_config, f, default_flow_style=False)
