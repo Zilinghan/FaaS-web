@@ -1199,6 +1199,7 @@ def update_client_code():
                     result = fxc.get_result(task_id)
                     if result is not None:
                         update_results[endpoint_id] = {'returncode': result['returncode'], 'stdout': result['stdout'], 'stderr': result['stderr']}
+                        break
                     else:
                         task_status = fxc.get_task(task_id)
                         if task_status['pending']:
