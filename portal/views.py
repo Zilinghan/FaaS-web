@@ -840,10 +840,9 @@ def upload_server_config(server_group_id):
     upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], server_group_id, server_id)
     if not os.path.exists(upload_folder):
         os.makedirs(upload_folder)
-
+    print("get form")
     # Save the appfl and model configuration
     form = dict(request.form)
-    print("get form")
     error_count, appfl_config, exp_name, model_fp = load_server_config(form, server_group_id)
     if error_count > 0:
         return redirect(request.referrer)
