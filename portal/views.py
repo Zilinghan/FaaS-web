@@ -679,6 +679,7 @@ def load_server_config(form, server_group_id):
         error_count += 1
         flash(f"Error {error_count}: Client learning rate decay should be in range (0, 1]!")
 
+    hf_model_name = None
     # If user chooses to use the template model
     if form['model-type'] == 'template':
         form['model-num-channels'] = int(form['model-num-channels'])
@@ -741,29 +742,27 @@ def load_server_config(form, server_group_id):
                 print("====================upload from github error====================")
                 return "Error occurred."
         elif form['model-type'] == 'hf':
-            model_name = form.get('hf-model-name')
+            hf_model_name = form.get('hf-model-name')
+            print("-------------------hf-model-name:", hf_model_name)
+            model_file_fp = None
+            # # Construct the URL to the .tar.gz file containing the model weights
+            # model_url = f"https://huggingface.co/{model_name}/resolve/main/pytorch_model.bin"
 
-            # Construct the URL to the .tar.gz file containing the model weights
-            model_url = f"https://huggingface.co/{model_name}/resolve/main/pytorch_model.bin"
+            # # Make a request to the Hugging Face API to get the model file
+            # model_response = requests.get(model_url, stream=True)
 
-            # Make a request to the Hugging Face API to get the model file
-            model_response = requests.get(model_url, stream=True)
+            # if model_response.status_code == 200:
+            #     # Save the model file
+            #     model_file_path = os.path.join(upload_folder, 'model.pt')
 
-            if model_response.status_code == 200:
-                # Save the model file
-                model_file_path = os.path.join(upload_folder, 'model.pt')
+            #     with open(model_file_path, 'wb') as f:
+            #         f.write(model_response.content)
 
-                with open(model_file_path, 'wb') as f:
-                    f.write(model_response.content)
-
-                print("==================upload from Hugging Face success!====================")
-            else:
-                # Handle errors
-                print("====================upload from Hugging Face error====================")
-                return "Error occurred."
-
-
-
+            #     print("==================upload from Hugging Face success!====================")
+            # else:
+            #     # Handle errors
+            #     print("====================upload from Hugging Face error====================")
+            #     return "Error occurred."
     if error_count > 0:
         return error_count, None, None, None
 
@@ -818,6 +817,7 @@ def load_server_config(form, server_group_id):
     else:
         #TODO: Check what is model_file should be filled after changes
         appfl_config['model_file'] = f'TBF'
+        appfl_config['hf_model_name'] = hf_model_name
     return error_count, appfl_config, form['federation-name'], model_file_fp
 
 @app.route('/upload_server_config/<server_group_id>', methods=['POST'])
@@ -843,6 +843,7 @@ def upload_server_config(server_group_id):
 
     # Save the appfl and model configuration
     form = dict(request.form)
+    print("get form")
     error_count, appfl_config, exp_name, model_fp = load_server_config(form, server_group_id)
     if error_count > 0:
         return redirect(request.referrer)
