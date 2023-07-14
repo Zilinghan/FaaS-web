@@ -26,6 +26,20 @@
           </div>
 
           <div class="form-group-inline-tight">
+            <label>Git Repository Path</label>
+            <input
+              type="text"
+              id="client-info-git-repo-path"
+              name="git-repo-path"
+              class="form-control"
+              value="No git repository path specified"
+              required="required"
+              tabindex="1"
+              disabled="True"
+            >
+          </div>
+
+          <div class="form-group-inline-tight">
             <label>
               Dataloader 
               <a href="{{url_for('download_file', file_type='dataloader', group_id=client_group_id)}}">
@@ -233,6 +247,7 @@
             document.getElementById('client-info-endpoint-id').value = resp['endpoint_id'];
             document.getElementById('client-info-dataloader').value = 'dataloader.py';
             document.getElementById('client-info-device-type').value = resp['device'];
+            document.getElementById('client-info-git-repo-path').value = resp['path_to_git_dir'];
             document.getElementById('client-info-dataloader-download').style.display = 'inline';
         },
         error: function(xhr, status, err) {
