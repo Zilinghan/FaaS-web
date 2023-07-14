@@ -1167,7 +1167,7 @@ def update_client(path):
     else:
         return {'returncode': -1, 'stdout': '', 'stderr': 'Path does not exist or is not a directory'}
 
-    result = subprocess.run(['git', 'pull', 'origin', 'funcx'], capture_output=True, text=True)
+    result = subprocess.run(['git', 'pull', 'origin', 'main'], capture_output=True, text=True)
     return {'returncode': result.returncode, 'stdout': result.stdout, 'stderr': result.stderr}
 
 @app.route('/update_client_code', methods=['GET', 'POST'])
