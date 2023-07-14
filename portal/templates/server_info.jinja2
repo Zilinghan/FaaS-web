@@ -27,6 +27,7 @@
                   <th>Email</th>
                   <th>Endpoint Status</th>
                   <th>Monitor</th>
+                  <th>Update</th>
                 </tr>
               </thead>
               <tbody>
@@ -52,6 +53,13 @@
                     <div class="endpoint-info-content">
                       <a href="javascript:void(0);" data-endpoint="{{client_endpoints[i]}}" data-client="{{client_names[i]}}" class="monitor-icon">
                         <img src="{{url_for('static', filename='img/monitor.svg')}}" role="button" style="cursor: not-allowed; opacity: 0.5; width: 20px; height: 30px;" id="monitor_link_{{client_endpoints[i]}}"/>
+                      </a>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="endpoint-info-content">
+                      <a href="javascript:void(0);" data-endpoint="{{client_endpoints[i]}}" data-client="{{client_names[i]}}" class="update-icon" data-toggle="tooltip" title="">
+                        <img src="{{url_for('static', filename='img/update.svg')}}" role="button" style="cursor: not-allowed; opacity: 0.5; width: 20px; height: 30px;" id="update_icon_{{client_endpoints[i]}}"/>
                       </a>
                     </div>
                   </td>
@@ -357,6 +365,14 @@
         }
       }
 
+      var client_paths = {{client_paths|safe}};
+      var endpoint_path_dict = {}
+      for (var i = 0; i < client_endpoints.length; i ++) {
+        if (client_endpoints[i] != '0') {
+          endpoint_path_dict[client_endpoints[i]] = client_paths[i]
+        }
+      }
+
       // Send the endpoints for status checking
       $.ajax({
         url: '/status-check',
@@ -390,7 +406,7 @@
           for (var i = 0; i < endpoints.length; i ++) {
             if (resp[endpoints[i]] == '1' || resp[endpoints[i]] == '2') {
               available_endpoints = available_endpoints.concat(endpoints[i]);
-              available_endpoints_names = available_endpoints_names.concat( endpoint_name_dict[endpoints[i]]);
+              available_endpoints_names = available_endpoints_names.concat(endpoint_name_dict[endpoints[i]]);
             }
           }
 
@@ -429,6 +445,67 @@
 
                 linkElement.style.cursor = "pointer";
                 linkElement.style.opacity = "1";
+              }
+            })(i);  // Execute the function immediately with `i` as argument
+          }
+
+          // Update client-side code for one single endpoint
+          for (var i = 0; i < endpoints.length; i++) {
+            (function(i) {  // Added IIFE
+              var iconElement = document.getElementById(`update_icon_${endpoints[i]}`);
+
+              if (resp[endpoints[i]] == '0') {
+                // Keep the icon disabled if the status is '0'
+                iconElement.style.cursor = "not-allowed";
+                iconElement.style.opacity = "0.5";
+              } else {
+                // Enable the icon for all other statuses
+                iconElement.style.cursor = "pointer";
+                iconElement.style.opacity = "1";
+
+                // Bind click event to trigger the update function
+                iconElement.onclick = function() {
+                  iconElement.classList.add("update-icon-spinning"); // Start spinning
+                  $.ajax({
+                    url: '/update_client_code',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ 'client_endpoints': [endpoints[i]], 'client_paths': [endpoint_path_dict[endpoints[i]]] }),
+                    success: function(resp) {
+                      console.log('Response from server:', resp);
+                      if (resp[endpoints[i]].returncode == 0) {
+                        // Update was successful
+                        iconElement.setAttribute("title", "Update Successful!");
+                        iconElement.setAttribute("data-original-title", "Update Successful!");
+                      } else {
+                        // Update failed
+                        iconElement.setAttribute("title", "Update Failed! Error: " + resp[endpoints[i]].stderr);
+                        iconElement.setAttribute("data-original-title", "Update Failed! Error: " + resp[endpoints[i]].stderr);
+                      }
+                      $(iconElement).tooltip('show');  // Show the tooltip
+
+                      // Set a timeout to hide the tooltip after 5 seconds
+                      setTimeout(function() {
+                        $(iconElement).tooltip('hide');
+                      }, 5000);
+
+                      iconElement.classList.remove("update-icon-spinning"); // Stop spinning
+                    },
+                    error: function(err) {
+                      console.log('Error:', err);
+                      iconElement.setAttribute("title", "Network Error!");
+                      iconElement.setAttribute("data-original-title", "Network Error!");
+                      $(iconElement).tooltip('show');  // Show the tooltip
+
+                      // Set a timeout to hide the tooltip after 5 seconds
+                      setTimeout(function() {
+                        $(iconElement).tooltip('hide');
+                      }, 5000);
+
+                      iconElement.classList.remove("update-icon-spinning"); // Stop spinning
+                    }
+                  });
+                };
               }
             })(i);  // Execute the function immediately with `i` as argument
           }

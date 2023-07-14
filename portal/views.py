@@ -178,7 +178,7 @@ def get_clients_information(members, group_id):
         - `user_orgs`: list of organizations of group members
         - `user_endpoint`: list of funcx endpoints provided by group members
     """
-    user_names, user_emails, user_orgs, user_endpoints = [], [], [], []
+    user_names, user_emails, user_orgs, user_endpoints, user_gitpaths = [], [], [], [], []
     for member in members:
         if member['status'] != 'active': continue
         # Obtain user information
@@ -213,10 +213,17 @@ def get_clients_information(members, group_id):
             with open(os.path.join(client_config_folder, 'client.yaml')) as f:
                 data = yaml.safe_load(f)
             user_endpoints.append(data['client']['endpoint_id'])
+            gitpath = data['client'].get('path_to_git_dir')
+            if gitpath == None:
+                user_gitpaths.append("null")
+            else:
+                user_gitpaths.append(gitpath)
             os.remove(os.path.join(client_config_folder, 'client.yaml'))
         else:
             user_endpoints.append('0')
-    return user_names, user_emails, user_orgs, user_endpoints
+            user_gitpaths.append('undefined')
+    print(user_endpoints, user_gitpaths)
+    return user_names, user_emails, user_orgs, user_endpoints, user_gitpaths
 
 @app.route('/browse/server/<server_group_id>', methods=['GET'])
 @app.route('/browse/client/<client_group_id>', methods=['GET'])
@@ -236,7 +243,7 @@ def browse_config(server_group_id=None, client_group_id=None):
     
     if server_group_id is not None:
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_clients_information(server_group['memberships'], server_group_id)
+        client_names, client_emails, client_orgs, client_endpoints, client_paths = get_clients_information(server_group['memberships'], server_group_id)
         return render_template('server.jinja2', \
                                server_group_id=server_group_id, \
                                client_names=client_names, \
@@ -269,7 +276,7 @@ def browse_info(server_group_id=None, client_group_id=None):
         task_arns, task_names = ecs_parse_taskinfo(task_info)
         task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_clients_information(server_group['memberships'], server_group_id)
+        client_names, client_emails, client_orgs, client_endpoints, client_paths = get_clients_information(server_group['memberships'], server_group_id)
         return render_template('server_info.jinja2', \
                                 server_group_id=server_group_id, \
                                 client_names=client_names, \
@@ -278,13 +285,14 @@ def browse_info(server_group_id=None, client_group_id=None):
                                 client_orgs=client_orgs, \
                                 task_ids=task_ids, \
                                 task_arns=task_arns, \
-                                task_names=task_names)
+                                task_names=task_names, \
+                                client_paths=client_paths)
     if client_group_id is not None:
         task_info = dynamodb_get_tasks(client_group_id)
         task_arns, task_names = ecs_parse_taskinfo(task_info)
         task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
         server_group = gc.get_group(client_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_clients_information(server_group['memberships'], client_group_id)
+        client_names, client_emails, client_orgs, client_endpoints, client_paths = get_clients_information(server_group['memberships'], client_group_id)
         return render_template('client_info.jinja2', \
                                 client_group_id=client_group_id, \
                                 task_ids=task_ids, 
@@ -559,6 +567,7 @@ def upload_client_config(client_group_id):
     client_config['client']['device'] = request.form['device']
     client_config['client']['endpoint_id'] = request.form['endpoint_id']
     client_config['client']['output_dir'] = 'output' # the default name for output is output
+    client_config['client']['path_to_git_dir'] = request.form['git-repo-path']
 
     with open(os.path.join(upload_folder, 'client.yaml'), 'w') as f:
         yaml.dump(client_config, f, default_flow_style=False)
@@ -1095,7 +1104,6 @@ def get_system_stats():
         "Bytes Received": bytes_received
     }
 
-
 @app.route('/resources_monitor_data', methods=['GET', 'POST'])
 @authenticated
 def resources_monitor_data():
@@ -1108,7 +1116,6 @@ def resources_monitor_data():
     for endpoint_id in client_endpoints:
         endpoint_status[endpoint_id] = EndpointStatus.UNSET.value
     fxc = get_funcx_client(session['tokens'])
-    func_id = fxc.register_function(endpoint_test)
     monitor_func_id = fxc.register_function(get_system_stats)
     for endpoint_id in endpoint_status:
         if endpoint_id == '0': continue
@@ -1146,6 +1153,73 @@ def resources_monitor():
     return render_template('resources_monitor.jinja2', 
                        client_endpoints=client_endpoints, 
                        client_names=client_names)
+
+def update_client(path):
+    """Update client code"""
+    import subprocess
+    import os
+
+    if (path == "null"):
+        return {'returncode': -1, 'stdout': '', 'stderr': "You haven't set the path"}
+
+    if os.path.isdir(path):
+        os.chdir(path)
+    else:
+        return {'returncode': -1, 'stdout': '', 'stderr': 'Path does not exist or is not a directory'}
+
+    result = subprocess.run(['git', 'pull', 'origin', 'main'], capture_output=True, text=True)
+    return {'returncode': result.returncode, 'stdout': result.stdout, 'stderr': result.stderr}
+
+@app.route('/update_client_code', methods=['GET', 'POST'])
+@authenticated
+def update_client_code():
+    """Update client-side code by letting the client run git pull in the git directory"""
+    # Retrieve the parameters and parse the JSON
+    client_endpoints = request.get_json().get('client_endpoints', [])
+    if client_endpoints is None:
+        client_endpoints = []
+    client_paths = request.get_json().get('client_paths', [])
+    if client_paths is None:
+        client_paths = []
+    update_results = {}
+    print(client_paths)
+    for endpoint_id in client_endpoints:
+        if endpoint_id == '0':
+            continue
+        update_results[endpoint_id] = {'returncode': -1, 'stdout': '', 'stderr': 'Initialization state'}
+    fxc = get_funcx_client(session['tokens'])
+    update_func_id = fxc.register_function(update_client)
+    for i in range(len(update_results)):
+        endpoint_id = client_endpoints[i]
+        endpoint_path = client_paths[i]
+        try:
+            task_id = fxc.run(endpoint_path, endpoint_id=endpoint_id, function_id=update_func_id)
+            for _ in range(6):
+                try:
+                    result = fxc.get_result(task_id)
+                    if result is not None:
+                        update_results[endpoint_id] = {'returncode': result['returncode'], 'stdout': result['stdout'], 'stderr': result['stderr']}
+                        break
+                    else:
+                        task_status = fxc.get_task(task_id)
+                        if task_status['pending']:
+                            update_results[endpoint_id]['stderr'] = 'Task is still pending.'
+                        elif task_status['status'] == 'FAILED':
+                            update_results[endpoint_id]['stderr'] = 'Task failed. Exception: ' + task_status['exception']
+                        else:
+                            update_results[endpoint_id]['stderr'] = 'Task completed but did not return a result.'
+                except funcx.errors.error_types.TaskPending:
+                    update_results[endpoint_id]['stderr'] = 'Task is still pending.'
+                except Exception as e:
+                    print(f"Caught an exception: {e}")
+                    update_results[endpoint_id] = {'returncode': -1, 'stdout': '', 'stderr': str(e)}
+                finally:
+                    time.sleep(1)
+        except Exception as e:
+            print(f"Caught an exception: {e}")
+            update_results[endpoint_id] = {'returncode': -1, 'stdout': '', 'stderr': str(e)}
+    return jsonify(update_results)
+
 
 @app.errorhandler(413)
 def error413(e):
