@@ -704,15 +704,17 @@
 
         // Add each file or directory to the modal body
         $.each(data, function(index, model) {
+            path = path + '/' + model;
             $("#hfModalBody").append(`
-                <a href="#" class="list-group-item list-group-item-action" onclick="getHfFiles('${model}', '${path}');">${model}</a>
+                <a href="#" class="list-group-item list-group-item-action" onclick="getHfFiles('${modelName}', '${path}');">${model}</a>
             `);
         });
     }
 
-    function selectFile(modelName) {
+    function selectFile(modelName, path) {
         // Fill the model name in the model name box
         $("#hf-model-name").val(modelName);
+        $('#hfModal').modal('hide');
     }
 
     {# $('#hfModal').on('hide.bs.modal', function (event) {
