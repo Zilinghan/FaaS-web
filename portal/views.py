@@ -479,6 +479,8 @@ def preview_file(file_type="", group_id=None):
         # Instead of redirecting to the download link, download the file server-side
         file_url = s3_get_download_link(S3_BUCKET_NAME, f'{group_id}/{user_id}/dataloader.py')
         response = requests.get(file_url)
+        if response.status_code == 404:
+            return '# No dataloader uploaded'
         # Assuming it's a text file, return its content
         return response.text
 
