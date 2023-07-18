@@ -281,13 +281,24 @@
 
           <div id="hf-models" style="display:none">
             <div class="form-group">
-                <label for="hf-model-name">Model</label>
-                <input type="text" id="hf-model-name" name="hf-model-name" readonly class="form-control" placeholder="No model selected">
+                <label for="hf-model-arc">Model Architecture</label>
+                <input type="text" id="hf-model-arc" name="hf-model-arc" readonly class="form-control" placeholder="No model selected">
             </div>
-
-            <button type="button" class="btn btn-secondary" data-toggle="modal" data-target="#hfModal">
-              Select Model
+            <button type="button" class="btn btn-secondary select-model-btn" data-filetype="arc" data-toggle="modal" data-target="#hfModal" style="margin-bottom: 15px;">
+              Select File
             </button>
+            <div class="form-group">
+                <label for="hf-model-weights">Model Weights</label>
+                <input type="text" id="hf-model-weights" name="hf-model-weights" readonly class="form-control" placeholder="No model selected">
+            </div>
+            <button type="button" class="btn btn-secondary select-model-btn" data-filetype="weights" data-toggle="modal" data-target="#hfModal">
+              Select File
+            </button>
+
+
+            {# <button type="button" class="btn btn-secondary" data-toggle="modal" data-target="#hfModal">
+              Select Model
+            </button> #}
           </div>
 
           <!-- Create the modal to upload model from hugging face -->
@@ -308,7 +319,7 @@
                         <input type="text" class="form-control" id="hfModelInput" placeholder="Search for models...">
                     </div>
 
-                    <!-- Task -->
+                    {# <!-- Task -->
                     <div class="form-group">
                         <label for="hfModelTask">Task <i class="fas fa-info-circle" data-toggle="tooltip" title="The task the model is designed for. eg. Text-classification."></i></label>
                         <input type="text" class="form-control" id="hfModelTask" placeholder="Filter by task">
@@ -324,7 +335,7 @@
                     <div class="form-group">
                         <label for="hfModelDataset">Trained Dataset <i class="fas fa-info-circle" data-toggle="tooltip" title="The dataset the model was trained on."></i></label>
                         <input type="text" class="form-control" id="hfModelDataset" placeholder="Filter by trained dataset">
-                    </div>
+                    </div> #}
 
                     <!-- Author -->
                     <div class="form-group">
@@ -594,12 +605,19 @@
     }
 
     // Hugging Face (hf) code
-    $(document).ready(function() {
+    var selectingHfFiletype;  // The current file type being selected
+
+    $('.select-model-btn').click(function() {
+      // Set the state variable based on which button was clicked
+      selectingHfFiletype = $(this).data('filetype');
+    });
+
+    {# $(document).ready(function() {
         $('#hfModal').on('hide.bs.modal', function (event) {
             // This function will be called when the modal is about to be hidden
             $("#hfModalBody").empty();
         });
-    });
+    }); #}
 
     // Keep track of the path history to go back to previous folder in Hugging Face
     var hfPathStack = [];
@@ -724,7 +742,12 @@
 
     function selectFile(modelName, path) {
         // Fill the model name in the model name box
-        $("#hf-model-name").val(path);
+        if (selectingHfFiletype === 'arc') {
+          $("#hf-model-arc").val(path);
+        } else {
+          $("#hf-model-weights").val(path);
+        }
+        
         $('#hfModal').modal('hide');
     }
 
@@ -807,7 +830,8 @@
         }
         document.getElementById("custom-model-file").required=false;
         document.getElementById("github-file-path").required=false;
-        document.getElementById("hf-model-name").required=false;
+        document.getElementById("hf-model-arc").required=false;
+        document.getElementById("hf-model-weights").required=false;
       });
 
       modelTypes[1].addEventListener('click', function(){
@@ -825,7 +849,8 @@
         }
         document.getElementById("custom-model-file").required=true;
         document.getElementById("github-file-path").required=false;
-        document.getElementById("hf-model-name").required=false;
+        document.getElementById("hf-model-arc").required=false;
+        document.getElementById("hf-model-weights").required=false;
       });
 
       modelTypes[2].addEventListener('click', function(){
@@ -843,7 +868,8 @@
         }
         document.getElementById("custom-model-file").required=false;
         document.getElementById("github-file-path").required=true;
-        document.getElementById("hf-model-name").required=false;
+        document.getElementById("hf-model-arc").required=false;
+        document.getElementById("hf-model-weights").required=false;
       });
 
       modelTypes[3].addEventListener('click', function(){
@@ -861,7 +887,8 @@
         }
         document.getElementById("custom-model-file").required=false;
         document.getElementById("github-file-path").required=false;
-        document.getElementById("hf-model-name").required=true;
+        document.getElementById("hf-model-arc").required=true;
+        document.getElementById("hf-model-weights").required=true;
       });
 
 

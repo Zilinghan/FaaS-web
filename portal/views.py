@@ -679,7 +679,8 @@ def load_server_config(form, server_group_id):
         error_count += 1
         flash(f"Error {error_count}: Client learning rate decay should be in range (0, 1]!")
 
-    hf_model_name = None
+    hf_model_arc = None
+    hf_model_weights = None
     # If user chooses to use the template model
     if form['model-type'] == 'template':
         form['model-num-channels'] = int(form['model-num-channels'])
@@ -742,8 +743,8 @@ def load_server_config(form, server_group_id):
                 print("====================upload from github error====================")
                 return "Error occurred."
         elif form['model-type'] == 'hf':
-            hf_model_name = form.get('hf-model-name')
-            print("-------------------hf-model-name:", hf_model_name)
+            hf_model_arc = form.get('hf-model-arc')
+            hf_model_weights = form.get('hf-model-weights')
             model_file_fp = None
             # # Construct the URL to the .tar.gz file containing the model weights
             # model_url = f"https://huggingface.co/{model_name}/resolve/main/pytorch_model.bin"
@@ -817,7 +818,8 @@ def load_server_config(form, server_group_id):
     else:
         #TODO: Check what is model_file should be filled after changes
         appfl_config['model_file'] = f'TBF'
-        appfl_config['hf_model_name'] = hf_model_name
+        appfl_config['hf_model_arc'] = hf_model_arc
+        appfl_config['hf_model_weights'] = hf_model_weights
     return error_count, appfl_config, form['federation-name'], model_file_fp
 
 @app.route('/upload_server_config/<server_group_id>', methods=['POST'])
@@ -859,37 +861,37 @@ def upload_server_config(server_group_id):
         group_members_str += ','
     group_members_str = group_members_str[:-1]
 
-    # # Test Code Updated
-    # parameter_dict = {}
-    # parameter_dict['group_members'] = group_members_str
-    # parameter_dict['server_id'] = server_id
-    # parameter_dict['group_id'] = server_group_id
-    # parameter_dict['upload_folder'] = app.config["UPLOAD_FOLDER"]
-    # parameter_dict['funcx_token'] = session['tokens']['funcx_service']['access_token']
-    # parameter_dict['search_token'] = session['tokens']['search.api.globus.org']['access_token']
-    # parameter_dict['openid_token'] = session['tokens']['auth.globus.org']['access_token']
-    # with open(os.path.join(upload_folder, 'parameter.yaml'), 'w') as f:
-    #     yaml.dump(parameter_dict, f, default_flow_style=False)
+    # Test Code Updated
+    parameter_dict = {}
+    parameter_dict['group_members'] = group_members_str
+    parameter_dict['server_id'] = server_id
+    parameter_dict['group_id'] = server_group_id
+    parameter_dict['upload_folder'] = app.config["UPLOAD_FOLDER"]
+    parameter_dict['funcx_token'] = session['tokens']['funcx_service']['access_token']
+    parameter_dict['search_token'] = session['tokens']['search.api.globus.org']['access_token']
+    parameter_dict['openid_token'] = session['tokens']['auth.globus.org']['access_token']
+    with open(os.path.join(upload_folder, 'parameter.yaml'), 'w') as f:
+        yaml.dump(parameter_dict, f, default_flow_style=False)
 
-    # task_id = 'randomid'
-    # model_key        = f'{server_group_id}/{EXP_DIR}/{task_id}/model.py'
-    # parameter_fp     = os.path.join(upload_folder, 'parameter.yaml')
-    # parameter_key    = f'{server_group_id}/{EXP_DIR}/{task_id}/parameter.yaml'
-    # appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')    
-    # appfl_config_key = f'{server_group_id}/{EXP_DIR}/{task_id}/appfl_config.yaml'
+    task_id = 'randomid'
+    model_key        = f'{server_group_id}/{EXP_DIR}/{task_id}/model.py'
+    parameter_fp     = os.path.join(upload_folder, 'parameter.yaml')
+    parameter_key    = f'{server_group_id}/{EXP_DIR}/{task_id}/parameter.yaml'
+    appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')    
+    appfl_config_key = f'{server_group_id}/{EXP_DIR}/{task_id}/appfl_config.yaml'
 
-    # if model_fp is not None:
-    #     if not s3_upload(S3_BUCKET_NAME, model_key, model_fp, delete_local=True):
-    #         flash("Error: The custom model file is not uploaded successfully!")
-    #         return redirect(request.referrer)
-    # if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
-    #     flash("Error: The configuration file is not uploaded successfully!")
-    #     return redirect(request.referrer)
-    # if not s3_upload(S3_BUCKET_NAME, parameter_key, parameter_fp, delete_local=True):
-    #     flash("Error: The parameter file is not uploaded successfully!")
-    #     return redirect(request.referrer)
-    # print(f'The key of the S3 parameter object file is {server_group_id}/{EXP_DIR}')
-    # return redirect(url_for('dashboard'))
+    if model_fp is not None:
+        if not s3_upload(S3_BUCKET_NAME, model_key, model_fp, delete_local=True):
+            flash("Error: The custom model file is not uploaded successfully!")
+            return redirect(request.referrer)
+    if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
+        flash("Error: The configuration file is not uploaded successfully!")
+        return redirect(request.referrer)
+    if not s3_upload(S3_BUCKET_NAME, parameter_key, parameter_fp, delete_local=True):
+        flash("Error: The parameter file is not uploaded successfully!")
+        return redirect(request.referrer)
+    print(f'The key of the S3 parameter object file is {server_group_id}/{EXP_DIR}')
+    return redirect(url_for('dashboard'))
 
     # Prepare a parameter file for running the server
     parameter_dict = {}
