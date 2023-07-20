@@ -28,11 +28,8 @@ def get_models():
     # Return list of model names
     return jsonify([model.modelId for model in models]), 200
 
-@hf_bp.route('/models/<userName>/<repoName>/', defaults={'path': ''})
-@hf_bp.route('/models/<userName>/<repoName>/<path:path>')
-def get_files(userName, repoName, path):
-    print(userName, repoName, path)
+@hf_bp.route('/models/<model_name>/', defaults={'path': ''})
+@hf_bp.route('/models/<model_name>/<path:path>', defaults={'path': ''})
+def get_files(path):
     fs = HfFileSystem()
-    files = fs.ls(f"{userName}/{repoName}/{path}", detail=False)  
-    return jsonify(files), 200
-
+    return jsonify(fs.ls(path, detail=False)), 200
