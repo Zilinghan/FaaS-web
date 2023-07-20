@@ -181,14 +181,17 @@
           <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
           {# Upload Model #}
           <div>
-            <label style="margin-right:10%">
+            <label style="margin-right:3%">
             <input type="radio" name="model-type" value="template" checked> Template Model
             </label>
-            <label style="margin-right:10%">
+            <label style="margin-right:3%">
             <input type="radio" name="model-type" value="custom"> Custom Model
             </label>
-            <label>
+            <label style="margin-right:3%">
             <input type="radio" name="model-type" value="github"> Upload from Github
+            </label>
+            <label>
+            <input type="radio" name="model-type" value="hf"> Hugging Face
             </label>
           </div>
           {% set models = ['CNN']%}
@@ -252,8 +255,7 @@
             </button>
           </div>
 
-
-          <!-- Create the modal -->
+          <!-- Create the modal to upload model from Github -->
           <div class="modal fade" id="githubModal" tabindex="-1" role="dialog" aria-labelledby="githubModalLabel" aria-hidden="true">
             <div class="modal-dialog" role="document">
               <div class="modal-content">
@@ -276,7 +278,83 @@
               </div>
             </div>
           </div>
-          
+
+          <div id="hf-models" style="display:none">
+            <div class="form-group">
+                <label for="hf-model-arc">Model Architecture</label>
+                <input type="text" id="hf-model-arc" name="hf-model-arc" readonly class="form-control" placeholder="No model selected">
+            </div>
+            <button type="button" class="btn btn-secondary select-model-btn" data-filetype="arc" data-toggle="modal" data-target="#hfModal" style="margin-bottom: 15px;">
+              Select File
+            </button>
+            <div class="form-group">
+                <label for="hf-model-weights">Model Weights</label>
+                <input type="text" id="hf-model-weights" name="hf-model-weights" readonly class="form-control" placeholder="No model selected">
+            </div>
+            <button type="button" class="btn btn-secondary select-model-btn" data-filetype="weights" data-toggle="modal" data-target="#hfModal">
+              Select File
+            </button>
+
+
+            {# <button type="button" class="btn btn-secondary" data-toggle="modal" data-target="#hfModal">
+              Select Model
+            </button> #}
+          </div>
+
+          <!-- Create the modal to upload model from hugging face -->
+          <div class="modal fade" id="hfModal" tabindex="-1" role="dialog" aria-labelledby="hfModalLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="hfModalLabel" style="padding-bottom: 15px;">Select Hugging Face Model</h4>
+                  <button type="button" class="btn btn-primary" style="position:absolute; right:50px; top:15px;" onclick="getModels()">Search</button>
+                  <button type="button" class="close" style="position:absolute; right:15px; top:25px;" data-dismiss="modal" aria-label="Close">
+                      <span aria-hidden="true">&times;</span>
+                  </button>
+                </div>
+                <div class="modal-body">
+                    <!-- Model Name -->
+                    <div class="form-group">
+                        <label for="hfModelInput">Model Name <span style="color: red;">*</span></label>
+                        <input type="text" class="form-control" id="hfModelInput" placeholder="Search for models...">
+                    </div>
+
+                    {# <!-- Task -->
+                    <div class="form-group">
+                        <label for="hfModelTask">Task <i class="fas fa-info-circle" data-toggle="tooltip" title="The task the model is designed for. eg. Text-classification."></i></label>
+                        <input type="text" class="form-control" id="hfModelTask" placeholder="Filter by task">
+                    </div>
+
+                    <!-- Library -->
+                    <div class="form-group">
+                        <label for="hfModelLibrary">Library <i class="fas fa-info-circle" data-toggle="tooltip" title="The machine learning library the model was built in. eg. PyTorch, TensorFlow. "></i></label>
+                        <input type="text" class="form-control" id="hfModelLibrary" placeholder="Filter by library">
+                    </div>
+
+                    <!-- Trained Dataset -->
+                    <div class="form-group">
+                        <label for="hfModelDataset">Trained Dataset <i class="fas fa-info-circle" data-toggle="tooltip" title="The dataset the model was trained on."></i></label>
+                        <input type="text" class="form-control" id="hfModelDataset" placeholder="Filter by trained dataset">
+                    </div> #}
+
+                    <!-- Author -->
+                    <div class="form-group">
+                        <label for="hfModelAuthor">Author <i class="fas fa-info-circle" data-toggle="tooltip" title="The author of the model."></i></label>
+                        <input type="text" class="form-control" id="hfModelAuthor" placeholder="Filter by author">
+                    </div>
+                  <div class="list-group" id="hfModalBody">
+                    <!-- The models will be loaded here -->
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" onclick="hfGoBack();">Back</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+
+
 
           <hr style="border-top: 1px solid rgba(128, 128, 128, 0.801) ;" width="100%">
           {# Hyperparameters for client-side optimizer #}
@@ -329,6 +407,10 @@
   </div> <!-- container -->
 
   <script>
+    $(document).ready(function(){
+      $('[data-toggle="tooltip"]').tooltip();   
+    });
+    // Github code
     // Keep track of the path history to go back to previous folder in Github
     var pathStack = [];
 
@@ -522,6 +604,157 @@
         });
     }
 
+    // Hugging Face (hf) code
+    var selectingHfFiletype;  // The current file type being selected
+
+    $('.select-model-btn').click(function() {
+      // Set the state variable based on which button was clicked
+      selectingHfFiletype = $(this).data('filetype');
+    });
+
+    {# $(document).ready(function() {
+        $('#hfModal').on('hide.bs.modal', function (event) {
+            // This function will be called when the modal is about to be hidden
+            $("#hfModalBody").empty();
+        });
+    }); #}
+
+    // Keep track of the path history to go back to previous folder in Hugging Face
+    var hfPathStack = [];
+
+    // ModelState class
+    class ModelState {
+      constructor() {
+      }
+    }
+
+    // HfPathState class
+    class HfPathState {
+      constructor(modelName, path) {
+        this.modelName = modelName;
+        this.path = path;
+      }
+    }
+
+    // Bind to the back button in the modal
+    function hfGoBack() {
+        if (hfPathStack.length === 1) {
+            $('#hfModal').modal('hide'); // Close the modal
+            return;
+        }
+        hfPathStack.pop();  // Remove the current state
+        var lastState = hfPathStack[hfPathStack.length - 1];  // Get the last state
+        if (lastState instanceof ModelState) {
+            getModels(true);
+        } else if (lastState instanceof HfPathState) {
+            getHfFiles(lastState.modelName, lastState.path, true);
+        }
+    }
+
+    var modelsArray = [];
+    var hfFilesArray = [];
+
+    {# function filterModels() {
+        var query = document.getElementById('hfModelInput').value.toUpperCase();
+        var filteredArray = modelsArray.filter(function(model) {
+          return model.toUpperCase().includes(query);
+        });
+        console.log(filteredArray);
+        displayModels(filteredArray);
+    } #}
+
+    function getModels(back = false) {
+        // Check if 'back' is an event object and if so, default it to false
+        if (typeof back === 'object' && back instanceof Event) {
+            back = false;
+        }
+        if (back === false) {
+            var modelState = new ModelState();
+            hfPathStack.push(modelState);
+        }
+        // Make an AJAX request to get the models
+        var modelName = $('#hfModelInput').val();
+        var task = $('#hfModelTask').val();
+        var library = $('#hfModelLibrary').val();
+        var dataset = $('#hfModelDataset').val();
+        var author = $('#hfModelAuthor').val();
+
+        $.get("/hugging_face_integration/models", {
+            model_name: modelName,
+            task: task,
+            library: library,
+            dataset: dataset,
+            author: author
+        }, function(data){
+            modelsArray = data;
+            displayModels(data);
+        });
+    }
+
+    function displayModels(data) {
+        // Clear the modal body
+        $("#hfModalBody").empty();
+
+        // Add each model to the modal body
+        $.each(data, function(index, model) {
+            $("#hfModalBody").append(`
+                <a href="#" class="list-group-item list-group-item-action" onclick="getHfFiles('${model}');">${model}</a>
+            `);
+        });
+    }
+
+    function getHfFiles(modelName, path = '', back = false) {
+        var splitModelName = modelName.split('/');
+        var userName = splitModelName[0];
+        var repoName = splitModelName[1];
+
+        if (back === false) {
+            var hfPathState = new HfPathState(modelName, path)
+            hfPathStack.push(hfPathState); 
+        }
+
+        // Make an AJAX request to get the repository files
+        $.get(`/hugging_face_integration/models/${userName}/${repoName}/${path}`, function(data){
+            hfFilesArray = data;
+            displayHfFiles(modelName, path, data);
+        });
+    }
+
+    function displayHfFiles(modelName, path = '', data) {
+        // Clear the modal body
+        $("#hfModalBody").empty();
+
+        // Add each file or directory to the modal body
+        $.each(data, function(index, model) {
+            if (model.includes('.')) {
+                // It's a file
+                $("#hfModalBody").append(`
+                    <a href="#" class="list-group-item list-group-item-action" onclick="selectFile('${modelName}', '${model}');">${model}</a>
+                `);
+            } else {
+                // It's a directory
+                $("#hfModalBody").append(`
+                    <a href="#" class="list-group-item list-group-item-action" onclick="getHfFiles('${modelName}', '${model}');">${model}</a>
+                `);
+            }
+        });
+    }
+
+    function selectFile(modelName, path) {
+        // Fill the model name in the model name box
+        if (selectingHfFiletype === 'arc') {
+          $("#hf-model-arc").val(path);
+        } else {
+          $("#hf-model-weights").val(path);
+        }
+        
+        $('#hfModal').modal('hide');
+    }
+
+    {# $('#hfModal').on('hide.bs.modal', function (event) {
+        $("#hfModalBody").empty();
+    }); #}
+
     function disableBackButton() {
       document.getElementById('server-config-page-back-btn').disabled = true;
       window.location.href='{{ url_for( 'dashboard') }}';
@@ -587,6 +820,7 @@
         document.getElementById('template-models').style.display = "block";
         document.getElementById('custom-models').style.display = "none";
         document.getElementById('github-models').style.display = "none";
+        document.getElementById('hf-models').style.display = "none";
         // Change the input requirements
         const modelParamDiv = document.getElementById("model-params-div");
         const modelParams = modelParamDiv.querySelectorAll("input");
@@ -596,6 +830,8 @@
         }
         document.getElementById("custom-model-file").required=false;
         document.getElementById("github-file-path").required=false;
+        document.getElementById("hf-model-arc").required=false;
+        document.getElementById("hf-model-weights").required=false;
       });
 
       modelTypes[1].addEventListener('click', function(){
@@ -603,6 +839,7 @@
         document.getElementById('template-models').style.display = "none";
         document.getElementById('custom-models').style.display = "block";
         document.getElementById('github-models').style.display = "none";
+        document.getElementById('hf-models').style.display = "none";
         // Change the input requirements
         const modelParamDiv = document.getElementById("model-params-div");
         const modelParams = modelParamDiv.querySelectorAll("input");        
@@ -612,6 +849,8 @@
         }
         document.getElementById("custom-model-file").required=true;
         document.getElementById("github-file-path").required=false;
+        document.getElementById("hf-model-arc").required=false;
+        document.getElementById("hf-model-weights").required=false;
       });
 
       modelTypes[2].addEventListener('click', function(){
@@ -619,6 +858,7 @@
         document.getElementById('template-models').style.display = "none";
         document.getElementById('custom-models').style.display = "none";
         document.getElementById('github-models').style.display = "block";
+        document.getElementById('hf-models').style.display = "none";
         // Change the input requirements
         const modelParamDiv = document.getElementById("model-params-div");
         const modelParams = modelParamDiv.querySelectorAll("input");        
@@ -628,6 +868,27 @@
         }
         document.getElementById("custom-model-file").required=false;
         document.getElementById("github-file-path").required=true;
+        document.getElementById("hf-model-arc").required=false;
+        document.getElementById("hf-model-weights").required=false;
+      });
+
+      modelTypes[3].addEventListener('click', function(){
+        // Display the custome model update div
+        document.getElementById('template-models').style.display = "none";
+        document.getElementById('custom-models').style.display = "none";
+        document.getElementById('github-models').style.display = "none";
+        document.getElementById('hf-models').style.display = "block";
+        // Change the input requirements
+        const modelParamDiv = document.getElementById("model-params-div");
+        const modelParams = modelParamDiv.querySelectorAll("input");        
+        for (let i = 0; i < modelParams.length; i++) {
+          console.log(modelParams[i].required);
+          modelParams[i].required = false;
+        }
+        document.getElementById("custom-model-file").required=false;
+        document.getElementById("github-file-path").required=false;
+        document.getElementById("hf-model-arc").required=true;
+        document.getElementById("hf-model-weights").required=true;
       });
 
 
