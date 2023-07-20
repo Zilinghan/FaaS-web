@@ -853,11 +853,13 @@ def load_server_config(form, server_group_id):
             'width': form['model-input-width'],
             'height': form['model-input-height']
         }
-    else:
-        #TODO: Check what is model_file should be filled after changes
-        appfl_config['model_file'] = f'TBF'
+    elif form['model-type'] == 'hf':
         appfl_config['hf_model_arc'] = hf_model_arc
         appfl_config['hf_model_weights'] = hf_model_weights
+    elif form['model-type'] == 'custom':
+        #TODO: Check what is model_file should be filled after changes
+        appfl_config['model_file'] = f'TBF'
+        
     return error_count, appfl_config, form['federation-name'], model_file_fp
 
 @app.route('/upload_server_config/<server_group_id>', methods=['POST'])
