@@ -856,7 +856,7 @@ def load_server_config(form, server_group_id):
     elif form['model-type'] == 'hf':
         appfl_config['hf_model_arc'] = hf_model_arc
         appfl_config['hf_model_weights'] = hf_model_weights
-    elif form['model-type'] == 'custom':
+    elif form['model-type'] == 'custom' or form['model-type'] == 'github':
         #TODO: Check what is model_file should be filled after changes
         appfl_config['model_file'] = f'TBF'
         
