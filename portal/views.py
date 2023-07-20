@@ -12,7 +12,7 @@ from tensorboard import program
 from portal.decorators import authenticated
 from portal.github_integration import github_bp
 from portal.hugging_face_integration import hf_bp
-from flask import (abort, flash, redirect, render_template, request, session, url_for)
+from flask import (abort, flash, redirect, render_template, request, session, url_for, jsonify)
 from portal.utils import (EXP_DIR, FL_TAG, S3_BUCKET_NAME, \
                           get_safe_redirect, group_tagging, get_servers_clients, \
                           load_portal_client, load_group_client, \
@@ -180,7 +180,7 @@ def get_clients_information(members, group_id):
         - `user_orgs`: list of organizations of group members
         - `user_endpoint`: list of funcx endpoints provided by group members
     """
-    user_names, user_emails, user_orgs, user_endpoints = [], [], [], []
+    user_names, user_emails, user_orgs, user_endpoints, user_gitpaths = [], [], [], [], []
     for member in members:
         if member['status'] != 'active': continue
         # Obtain user information
@@ -215,10 +215,17 @@ def get_clients_information(members, group_id):
             with open(os.path.join(client_config_folder, 'client.yaml')) as f:
                 data = yaml.safe_load(f)
             user_endpoints.append(data['client']['endpoint_id'])
+            gitpath = data['client'].get('path_to_git_dir')
+            if gitpath == None:
+                user_gitpaths.append("null")
+            else:
+                user_gitpaths.append(gitpath)
             os.remove(os.path.join(client_config_folder, 'client.yaml'))
         else:
             user_endpoints.append('0')
-    return user_names, user_emails, user_orgs, user_endpoints
+            user_gitpaths.append('undefined')
+    print(user_endpoints, user_gitpaths)
+    return user_names, user_emails, user_orgs, user_endpoints, user_gitpaths
 
 @app.route('/browse/server/<server_group_id>', methods=['GET'])
 @app.route('/browse/client/<client_group_id>', methods=['GET'])
@@ -238,7 +245,7 @@ def browse_config(server_group_id=None, client_group_id=None):
     
     if server_group_id is not None:
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_clients_information(server_group['memberships'], server_group_id)
+        client_names, client_emails, client_orgs, client_endpoints, client_paths = get_clients_information(server_group['memberships'], server_group_id)
         return render_template('server.jinja2', \
                                server_group_id=server_group_id, \
                                client_names=client_names, \
@@ -271,7 +278,7 @@ def browse_info(server_group_id=None, client_group_id=None):
         task_arns, task_names = ecs_parse_taskinfo(task_info)
         task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
         server_group = gc.get_group(server_group_id, include=["memberships"])
-        client_names, client_emails, client_orgs, client_endpoints = get_clients_information(server_group['memberships'], server_group_id)
+        client_names, client_emails, client_orgs, client_endpoints, client_paths = get_clients_information(server_group['memberships'], server_group_id)
         return render_template('server_info.jinja2', \
                                 server_group_id=server_group_id, \
                                 client_names=client_names, \
@@ -280,9 +287,17 @@ def browse_info(server_group_id=None, client_group_id=None):
                                 client_orgs=client_orgs, \
                                 task_ids=task_ids, \
                                 task_arns=task_arns, \
-                                task_names=task_names)
+                                task_names=task_names, \
+                                client_paths=client_paths)
     if client_group_id is not None:
-        return render_template('client_info.jinja2', client_group_id=client_group_id)
+        task_info = dynamodb_get_tasks(client_group_id)
+        task_arns, task_names = ecs_parse_taskinfo(task_info)
+        task_ids = [ecs_arn2id(task_arn) for task_arn in task_arns]
+        return render_template('client_info.jinja2', \
+                                client_group_id=client_group_id, \
+                                task_ids=task_ids, 
+                                task_arns=task_arns, \
+                                task_names=task_names)
 
 def download_comp_report(group_id, task_ids, referrer):
     """Download comparison report for experiments in a group."""
@@ -449,6 +464,28 @@ def download_file(file_type="", group_id=None, task_id=None):
         flash("Sorry, this function is still not implemented!")
         return redirect(request.referrer)
 
+@app.route('/preview_file/<file_type>/<group_id>', methods=['GET'])
+@authenticated
+def preview_file(file_type="", group_id=None):
+    """
+    Download and preview different types of files.
+
+    Inputs:
+        - `file_type`: Type of the file to be loaded.
+        - `group_id`: Corresponding group ID of the required file.
+    """
+    gc      = load_group_client(session['tokens']['groups.api.globus.org']['access_token'])
+    my_info = gc.get_group(group_id, include=['my_memberships'])['my_memberships'][0]
+    user_id = my_info['identity_id']
+    if file_type == "dataloader" and group_id is not None:
+        # Instead of redirecting to the download link, download the file server-side
+        file_url = s3_get_download_link(S3_BUCKET_NAME, f'{group_id}/{user_id}/dataloader.py')
+        response = requests.get(file_url)
+        if response.status_code == 404:
+            return '# No dataloader uploaded'
+        # Assuming it's a text file, return its content
+        return response.text
+
 @app.route('/get-client-info', methods=['GET'])
 @authenticated
 def get_client_info():
@@ -532,6 +569,7 @@ def upload_client_config(client_group_id):
     client_config['client']['device'] = request.form['device']
     client_config['client']['endpoint_id'] = request.form['endpoint_id']
     client_config['client']['output_dir'] = 'output' # the default name for output is output
+    client_config['client']['path_to_git_dir'] = request.form['git-repo-path']
 
     with open(os.path.join(upload_folder, 'client.yaml'), 'w') as f:
         yaml.dump(client_config, f, default_flow_style=False)
@@ -1040,6 +1078,173 @@ def tensorboard_log_page(server_group_id, task_id):
     else:
         flash("Error: There is not log file for this server!")
         return redirect(request.referrer)
+
+def get_system_stats():
+    """Get system and network utilization statistics."""
+    """Ensure necessary dependencies are installed."""
+    import subprocess
+    import pkg_resources
+
+    DEPENDENCIES = [
+        'psutil',
+        'pynvml'
+    ]
+
+    installed_packages = pkg_resources.working_set
+    installed_packages_list = sorted(["%s==%s" % (i.key, i.version)
+        for i in installed_packages])
+
+    for dependency in DEPENDENCIES:
+        if dependency not in installed_packages_list:
+            subprocess.check_call(["python3", "-m", "pip", "install", dependency])
+
+    import psutil
+    try:
+        import pynvml
+
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0) # Assuming one GPU.
+
+        # Get GPU utilization
+        gpu_utilization = pynvml.nvmlDeviceGetUtilizationRates(handle).gpu
+
+        # Don't forget to shut down the NVML library.
+        pynvml.nvmlShutdown()
+
+    except Exception as e:
+        gpu_utilization = "N/A"
+        print(f"Error: {e}. GPU utilization will not be available.")
+
+    # Get CPU, memory, and network stats.
+    cpu_utilization = psutil.cpu_percent()
+    memory_utilization = psutil.virtual_memory().percent
+    bytes_sent = psutil.net_io_counters().bytes_sent
+    bytes_received = psutil.net_io_counters().bytes_recv
+
+    return {
+        "CPU utilization": cpu_utilization,
+        "Memory utilization": memory_utilization,
+        "GPU utilization": gpu_utilization,
+        "Bytes Sent": bytes_sent,
+        "Bytes Received": bytes_received
+    }
+
+@app.route('/resources_monitor_data', methods=['GET', 'POST'])
+@authenticated
+def resources_monitor_data():
+    # Retrieve the parameters and parse the JSON
+    client_endpoints = request.get_json().get('client_endpoints', [])
+    if client_endpoints is None:
+        client_endpoints = []
+    endpoint_resources_data = {}
+    endpoint_status = {}
+    for endpoint_id in client_endpoints:
+        endpoint_status[endpoint_id] = EndpointStatus.UNSET.value
+    fxc = get_funcx_client(session['tokens'])
+    monitor_func_id = fxc.register_function(get_system_stats)
+    for endpoint_id in endpoint_status:
+        if endpoint_id == '0': continue
+        try:
+            task_id = fxc.run(endpoint_id=endpoint_id, function_id=monitor_func_id)
+            for _ in range(6):
+                try:
+                    result = fxc.get_result(task_id)
+                    if result is not None:
+                        endpoint_resources_data[endpoint_id] = result
+                        break
+                    time.sleep(1)
+                except funcx.errors.error_types.TaskPending:
+                    time.sleep(1)
+                    continue
+                except:
+                    endpoint_resources_data[endpoint_id] = {'error': 'Failed to get result'}
+                    break
+        except:
+            endpoint_resources_data[endpoint_id] = {'error': 'Failed to run monitoring function'}
+            break
+
+    return jsonify(endpoint_resources_data)
+
+@app.route('/resources_monitor')
+def resources_monitor():
+    client_endpoints = request.args.get('client_endpoints')
+    client_names = request.args.get('client_names')
+
+    # Because we passed the data as JSON, we need to parse it back into a Python list
+    import json
+    client_endpoints = json.loads(client_endpoints)
+    client_names = json.loads(client_names)
+
+    return render_template('resources_monitor.jinja2', 
+                       client_endpoints=client_endpoints, 
+                       client_names=client_names)
+
+def update_client(path):
+    """Update client code"""
+    import subprocess
+    import os
+
+    if (path == "null"):
+        return {'returncode': -1, 'stdout': '', 'stderr': "You haven't set the path"}
+
+    if os.path.isdir(path):
+        os.chdir(path)
+    else:
+        return {'returncode': -1, 'stdout': '', 'stderr': 'Path does not exist or is not a directory'}
+
+    result = subprocess.run(['git', 'pull', 'origin', 'main'], capture_output=True, text=True)
+    return {'returncode': result.returncode, 'stdout': result.stdout, 'stderr': result.stderr}
+
+@app.route('/update_client_code', methods=['GET', 'POST'])
+@authenticated
+def update_client_code():
+    """Update client-side code by letting the client run git pull in the git directory"""
+    # Retrieve the parameters and parse the JSON
+    client_endpoints = request.get_json().get('client_endpoints', [])
+    if client_endpoints is None:
+        client_endpoints = []
+    client_paths = request.get_json().get('client_paths', [])
+    if client_paths is None:
+        client_paths = []
+    update_results = {}
+    print(client_paths)
+    for endpoint_id in client_endpoints:
+        if endpoint_id == '0':
+            continue
+        update_results[endpoint_id] = {'returncode': -1, 'stdout': '', 'stderr': 'Initialization state'}
+    fxc = get_funcx_client(session['tokens'])
+    update_func_id = fxc.register_function(update_client)
+    for i in range(len(update_results)):
+        endpoint_id = client_endpoints[i]
+        endpoint_path = client_paths[i]
+        try:
+            task_id = fxc.run(endpoint_path, endpoint_id=endpoint_id, function_id=update_func_id)
+            for _ in range(6):
+                try:
+                    result = fxc.get_result(task_id)
+                    if result is not None:
+                        update_results[endpoint_id] = {'returncode': result['returncode'], 'stdout': result['stdout'], 'stderr': result['stderr']}
+                        break
+                    else:
+                        task_status = fxc.get_task(task_id)
+                        if task_status['pending']:
+                            update_results[endpoint_id]['stderr'] = 'Task is still pending.'
+                        elif task_status['status'] == 'FAILED':
+                            update_results[endpoint_id]['stderr'] = 'Task failed. Exception: ' + task_status['exception']
+                        else:
+                            update_results[endpoint_id]['stderr'] = 'Task completed but did not return a result.'
+                except funcx.errors.error_types.TaskPending:
+                    update_results[endpoint_id]['stderr'] = 'Task is still pending.'
+                except Exception as e:
+                    print(f"Caught an exception: {e}")
+                    update_results[endpoint_id] = {'returncode': -1, 'stdout': '', 'stderr': str(e)}
+                finally:
+                    time.sleep(1)
+        except Exception as e:
+            print(f"Caught an exception: {e}")
+            update_results[endpoint_id] = {'returncode': -1, 'stdout': '', 'stderr': str(e)}
+    return jsonify(update_results)
+
 
 @app.errorhandler(413)
 def error413(e):

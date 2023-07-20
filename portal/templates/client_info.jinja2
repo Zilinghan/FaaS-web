@@ -6,12 +6,12 @@
   {%include "header.jinja2"%}
   <div class="container">
     <div class="row">
-      <div class="page-header col-md-6 col-md-offset-3">
+      <div class="page-header ">
         <h1>Site Information</h1>
       </div>
-      <div class="col-md-6 col-md-offset-3">
+      <div class="">
         <form role="presentation">
-          <div class="form-group-inline">
+          <div class="form-group-inline-tight">
             <label>Endpoint ID</label>
             <input
               type="text"
@@ -25,12 +25,26 @@
             >
           </div>
 
-          <div class="form-group-inline">
+          <div class="form-group-inline-tight">
+            <label>Git Repository Path</label>
+            <input
+              type="text"
+              id="client-info-git-repo-path"
+              name="git-repo-path"
+              class="form-control"
+              value="No git repository path specified"
+              required="required"
+              tabindex="1"
+              disabled="True"
+            >
+          </div>
+
+          <div class="form-group-inline-tight">
             <label>
-                Dataloader 
-                <a href="{{url_for('download_file', file_type='dataloader', group_id=client_group_id)}}">
-                    <img src="{{url_for('static', filename='img/download.png')}}" style="width:18%; cursor:pointer;display:none;" id="client-info-dataloader-download"/>
-                </a>
+              Dataloader 
+              <a href="{{url_for('download_file', file_type='dataloader', group_id=client_group_id)}}">
+                  <img src="{{url_for('static', filename='img/download.png')}}" style="width:18%; cursor:pointer;display:none;" id="client-info-dataloader-download"/>
+              </a>
             </label>
             <input
               type="text"
@@ -42,10 +56,19 @@
               tabindex="3"
               disabled="True"
             >
-            
+            <label style="color: dimgray; margin-top: 1em">File Preview</label>
+            <div style="text-align: right;">
+              <button id="preview-toggle" onclick="togglePreview(event)" style="margin-top: 1em;">Show More</button>
+            </div>
+            <pre id="file-preview" style="max-height: 8em; overflow: auto; white-space: pre-wrap; margin-top: 1em; display: none; width: 100%">
+                <code class="python hljs" id="preview-content">
+                    {{ file_content | safe }}
+                </code>
+            </pre>
+      
           </div>
 
-          <div class="form-group-inline">
+          <div class="form-group-inline-tight">
             <label>Device Type</label>
             <input
               type="text"
@@ -73,6 +96,64 @@
             >
           </div> #}
         </form>
+
+        <h2 class="anchored" data-anchor-id="exp-info-title">Experiment Information</h2>
+        <section id="experiment-information" class="level4">
+          <div class="button-container float-end" style="margin-top: 1.5%; margin-bottom: 1.5%">
+            <button disabled id="experiment-compare" onclick="clickCompare()">Compare</button>
+          </div>
+          <div class="cell" data-execution_count="30">
+            <div class="cell-output cell-output-display" data-execution_count="825">
+              <div class="container first-container col-sm-12 pull-left">
+                <table class="table table-condensed table-striped">
+                  <thead>
+                    <tr>
+                      <th>Experiment Name</th>
+                      <th>Experiment ID</th>
+                      <th>Config</th>
+                      <th>Log</th>
+                      <th>Report</th>
+                      <th>Tensorboard</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {%for i in range(task_ids|length)%}
+                    <tr>
+                      <td>
+                        <input type="checkbox" name="item_checkbox" value="{{ task_ids[i] }}" task-name="{{task_names[i]}}" task-arn="{{task_arns[i]}}">&nbsp;{{task_names[i]}}
+                      </td>
+                      <td>{{task_ids[i]}}</td>
+                      <td id="task_{{task_ids[i]}}_configfile">
+                        <a href="{{url_for('download_file', file_type='configuration', group_id=client_group_id, task_id=task_ids[i])}}">
+                          <img src="{{url_for('static', filename='img/config.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+                        </a>
+                      </td>
+                      <td id="task_{{task_id}}_logfile">
+                        <a href="{{url_for('download_file', file_type='log', group_id=client_group_id, task_id=task_ids[i])}}">
+                          <img src="{{url_for('static', filename='img/log.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+                        </a>
+                      </td>
+                      <td id="task_{{task_id}}_reportfile">
+                        <a href="{{url_for('download_file', file_type='report', group_id=client_group_id, task_id=task_ids[i])}}">
+                          <img src="{{url_for('static', filename='img/report.png')}}" style="width:25px; cursor:pointer;" id="???"/>
+                        </a>
+                      </td>
+                      <td id="task_{{task_id}}_tbfile">
+                        <a href="{{url_for('tensorboard_log_page', server_group_id=client_group_id, task_id=task_ids[i])}}">
+                          <img src="{{url_for('static', filename='img/tensorboard.png')}}" style="width:20px; cursor:pointer;" id="???"/>
+                        </a>
+                      </td>
+                    </tr>
+                    {%endfor%}
+                  </tbody>
+                </table>
+              </div>
+            </div> 
+          </div>
+        </section>
+
+        <hr class="col-sm-12" style="border-top: 1px solid rgba(128, 128, 128, 0.801) ; margin-top: 0" width="100%" >
+
         <div class="form-group">
           <button class="btn btn-secondary" onclick="disableBackButton()" id="client-info-page-back-btn">Back</button>
         </div>
@@ -81,10 +162,79 @@
 
   </div> <!-- container -->
 
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+
   <script>
+  // Enable Python style for the code preview
+  document.addEventListener('DOMContentLoaded', (event) => {
+      hljs.highlightAll();
+  });
+
+
+  // Script for updating selected tasks
+  var selectedItems     = []
+  var group_id = "{{ client_group_id }}";
+
+  $('input[name="item_checkbox"]').on('change', function() {
+    // Update the selected item information
+    if ($(this).is(':checked')) {
+      selectedItems.push($(this).val());
+    } else {
+      selectedItems.splice(selectedItems.indexOf($(this).val()), 1);
+    }
+    
+    // Change the status of the action buttons according to the number of selected items
+    if (selectedItems.length == 0) {
+      document.getElementById("experiment-compare").disabled = true;
+    }
+    else if (selectedItems.length == 1) {
+      document.getElementById("experiment-compare").disabled = true;
+    }
+    else {
+      document.getElementById("experiment-compare").disabled = false;
+    }
+  });
+
+  // Compare the selected experiments
+  function clickCompare() {
+    // Convert task_ids array to a string with comma-separated ids
+    var task_ids_string = selectedItems.join(',');
+
+    // Generate URL
+    var url = '/download/comp_report/' + group_id + '?task_ids=' + task_ids_string;
+
+    var newWindow = window.open(url);
+  }
+
   function disableBackButton(){
     document.getElementById('client-info-page-back-btn').disabled = true;
     window.location.href='{{ url_for( 'dashboard') }}';
+  }
+
+  window.onload = function() {
+      fetch('/preview_file/dataloader/' + group_id)
+          .then(response => response.text())
+          .then(text => {
+              var fileContentElement = document.getElementById('file-preview');
+              fileContentElement.textContent = text;
+              fileContentElement.style.display = "block";
+              // Call Highlight.js to highlight the new content
+              hljs.highlightElement(fileContentElement);
+          });
+  };
+
+  function togglePreview(event) {
+      event.preventDefault();
+      var preview = document.getElementById('file-preview');
+      var button = document.getElementById('preview-toggle');
+      if (preview.style.maxHeight !== "8em") {
+          preview.style.maxHeight = "8em";
+          button.innerText = "Show More";
+      } else {
+          preview.style.maxHeight = "none";
+          button.innerText = "Show Less";
+      }
   }
 
   $(document).ready(function(){
@@ -97,6 +247,7 @@
             document.getElementById('client-info-endpoint-id').value = resp['endpoint_id'];
             document.getElementById('client-info-dataloader').value = 'dataloader.py';
             document.getElementById('client-info-device-type').value = resp['device'];
+            document.getElementById('client-info-git-repo-path').value = resp['path_to_git_dir'];
             document.getElementById('client-info-dataloader-download').style.display = 'inline';
         },
         error: function(xhr, status, err) {

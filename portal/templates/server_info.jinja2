@@ -6,11 +6,15 @@
   {%include "header.jinja2"%}
 
   <div class="container">
-    <div class="page-header">
+    <div class="page-header" style="margin-bottom: 0;">
       <h1>Federation Information</h1>
     </div>
     
-    <h2 class="anchored" data-anchor-id="endpoint-info-title">Endpoint Information</h2>
+    <h2 class="anchored" data-anchor-id="endpoint-info-title" style="display: inline-block;">Endpoint Information</h2>
+    <a id="resources_monitor" target="_blank" style="display: inline-block; margin-left: 30px; margin-top: 25px; margin-bottom: 10px; font-size: 18px;">(Resources Monitor)</a>
+
+
+    
     <section id="endpoint-information" class="level4">
       <div class="cell" data-execution_count="30">
         <div class="cell-output cell-output-display" data-execution_count="825">
@@ -22,6 +26,8 @@
                   <th>Organization</th>
                   <th>Email</th>
                   <th>Endpoint Status</th>
+                  <th>Monitor</th>
+                  <th>Update</th>
                 </tr>
               </thead>
               <tbody>
@@ -41,6 +47,20 @@
                     {% else %}
                       <img id="info_status_{{client_names[i]}}_{{client_endpoints[i]}}" src="{{url_for('static', filename='img/loading.gif')}}" tabindex="0" role="button" data-toggle="popover" data-trigger="focus" title="Endpoint Status" data-content="Checking the status of the client endpoint......" data-placement="left"/>
                     {% endif %}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="endpoint-info-content">
+                      <a href="javascript:void(0);" data-endpoint="{{client_endpoints[i]}}" data-client="{{client_names[i]}}" class="monitor-icon">
+                        <img src="{{url_for('static', filename='img/monitor.svg')}}" role="button" style="cursor: not-allowed; opacity: 0.5; width: 20px; height: 30px;" id="monitor_link_{{client_endpoints[i]}}"/>
+                      </a>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="endpoint-info-content">
+                      <a href="javascript:void(0);" data-endpoint="{{client_endpoints[i]}}" data-client="{{client_names[i]}}" class="update-icon" data-toggle="tooltip" title="">
+                        <img src="{{url_for('static', filename='img/update.svg')}}" role="button" style="cursor: not-allowed; opacity: 0.5; width: 20px; height: 30px;" id="update_icon_{{client_endpoints[i]}}"/>
+                      </a>
                     </div>
                   </td>
                 </tr>
@@ -304,6 +324,12 @@
       window.location.href='{{ url_for( 'dashboard') }}';
     }
 
+    // Modify the default status of the link to resources monitor
+    var linkElement = document.getElementById('resources_monitor');
+    linkElement.style.cursor = "default";   // Cursor does not change on hover
+    linkElement.style.color = "grey";       // Change link color to grey
+    linkElement.style.textDecoration = "none"; // Remove underline
+
     // Check the endpoint status
     $(document).ready(function() {
       $(function () {
@@ -328,10 +354,8 @@
         }
       })
       
-      {# Endpoint Health Status Check #}
-      // Obtain the given endpoints to send, and generate an endpoint-name dictionary
       var client_endpoints = {{client_endpoints|safe}};
-      var client_names = {{client_names|safe}}
+      var client_names = {{client_names|safe}};
       var sent_data= {};
       var endpoint_name_dict = {}
       for (var i = 0; i < client_endpoints.length; i++){
@@ -340,8 +364,15 @@
           endpoint_name_dict[client_endpoints[i]] = client_names[i];
         }
       }
-      {# console.log(endpoint_name_dict)
-      console.log(sent_data); #}
+
+      var client_paths = {{client_paths|safe}};
+      var endpoint_path_dict = {}
+      for (var i = 0; i < client_endpoints.length; i ++) {
+        if (client_endpoints[i] != '0') {
+          endpoint_path_dict[client_endpoints[i]] = client_paths[i]
+        }
+      }
+
       // Send the endpoints for status checking
       $.ajax({
         url: '/status-check',
@@ -367,6 +398,116 @@
               document.getElementById(`info_status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).src = '{{url_for('static', filename='img/unset-hex.png')}}';
               document.getElementById(`info_status_${endpoint_name_dict[endpoints[i]]}_${endpoints[i]}`).setAttribute('data-content', 'The client endpoint is either unset or invalid!');
             }
+          }
+          {# Endpoint Monitor #}
+          // Obtain the given endpoints to send, and generate an endpoint-name dictionary
+          var available_endpoints = [];
+          var available_endpoints_names = [];
+          for (var i = 0; i < endpoints.length; i ++) {
+            if (resp[endpoints[i]] == '1' || resp[endpoints[i]] == '2') {
+              available_endpoints = available_endpoints.concat(endpoints[i]);
+              available_endpoints_names = available_endpoints_names.concat(endpoint_name_dict[endpoints[i]]);
+            }
+          }
+
+          // Pass endpoints data to monitor page
+          // Construct the URL
+          var resourcesMonitorURL = '/resources_monitor?' + 
+              'client_endpoints=' + encodeURIComponent(JSON.stringify(available_endpoints)) + 
+              '&client_names=' + encodeURIComponent(JSON.stringify(available_endpoints_names));
+
+          // Set the href attribute of your link
+          linkElement.href = resourcesMonitorURL;
+          linkElement.style.cursor = "pointer";  // Cursor changes to pointer on hover
+          linkElement.style.color = "black";     // Change link color back to black
+          linkElement.style.textDecoration = "underline"; // Add underline
+
+          // Monitor one single endpoint
+          for (var i = 0; i < endpoints.length; i++) {
+            (function(i) {  // Added IIFE
+              var linkElement = document.getElementById(`monitor_link_${endpoints[i]}`);
+              if (resp[endpoints[i]] == '0') {
+                // Keep the link disabled if the status is '0'
+                linkElement.parentElement.href = "javascript:void(0)";
+                linkElement.style.cursor = "not-allowed";
+                linkElement.style.opacity = "0.5";
+              } else {
+                // Enable the link for all other statuses
+                var monitorUrl = "/resources_monitor?client_endpoints=" + encodeURIComponent(JSON.stringify([endpoints[i]])) + 
+                                "&client_names=" + encodeURIComponent(JSON.stringify([endpoint_name_dict[endpoints[i]]]));
+
+                // bind onclick event to open the link in a new window
+                linkElement.parentElement.href = "javascript:void(0)";  // Set the href to prevent default link navigation
+                linkElement.parentElement.onclick = function() {
+                  window.open(monitorUrl, '_blank');
+                  return false;
+                };
+
+                linkElement.style.cursor = "pointer";
+                linkElement.style.opacity = "1";
+              }
+            })(i);  // Execute the function immediately with `i` as argument
+          }
+
+          // Update client-side code for one single endpoint
+          for (var i = 0; i < endpoints.length; i++) {
+            (function(i) {  // Added IIFE
+              var iconElement = document.getElementById(`update_icon_${endpoints[i]}`);
+
+              if (resp[endpoints[i]] == '0') {
+                // Keep the icon disabled if the status is '0'
+                iconElement.style.cursor = "not-allowed";
+                iconElement.style.opacity = "0.5";
+              } else {
+                // Enable the icon for all other statuses
+                iconElement.style.cursor = "pointer";
+                iconElement.style.opacity = "1";
+
+                // Bind click event to trigger the update function
+                iconElement.onclick = function() {
+                  iconElement.classList.add("update-icon-spinning"); // Start spinning
+                  $.ajax({
+                    url: '/update_client_code',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ 'client_endpoints': [endpoints[i]], 'client_paths': [endpoint_path_dict[endpoints[i]]] }),
+                    success: function(resp) {
+                      console.log('Response from server:', resp);
+                      if (resp[endpoints[i]].returncode == 0) {
+                        // Update was successful
+                        iconElement.setAttribute("title", "Update Successful!");
+                        iconElement.setAttribute("data-original-title", "Update Successful!");
+                      } else {
+                        // Update failed
+                        iconElement.setAttribute("title", "Update Failed! Error: " + resp[endpoints[i]].stderr);
+                        iconElement.setAttribute("data-original-title", "Update Failed! Error: " + resp[endpoints[i]].stderr);
+                      }
+                      $(iconElement).tooltip('show');  // Show the tooltip
+
+                      // Set a timeout to hide the tooltip after 5 seconds
+                      setTimeout(function() {
+                        $(iconElement).tooltip('hide');
+                      }, 5000);
+
+                      iconElement.classList.remove("update-icon-spinning"); // Stop spinning
+                    },
+                    error: function(err) {
+                      console.log('Error:', err);
+                      iconElement.setAttribute("title", "Network Error!");
+                      iconElement.setAttribute("data-original-title", "Network Error!");
+                      $(iconElement).tooltip('show');  // Show the tooltip
+
+                      // Set a timeout to hide the tooltip after 5 seconds
+                      setTimeout(function() {
+                        $(iconElement).tooltip('hide');
+                      }, 5000);
+
+                      iconElement.classList.remove("update-icon-spinning"); // Stop spinning
+                    }
+                  });
+                };
+              }
+            })(i);  // Execute the function immediately with `i` as argument
           }
         }
       });  

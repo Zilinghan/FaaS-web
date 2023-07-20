@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+  <html>
+  <head>
+    <script src="{{ url_for('static', filename='js/cdn.plot.ly_plotly-latest.min.js') }}"></script>
+    <style>
+      .row-container {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-around;
+        margin-bottom: 20px;
+      }
+      .chart {
+        width: 25%;
+        height: 400px;
+      }
+      /* Loading spinner CSS */
+      .loader {
+        display: block; /* Make it a block-level element */
+        border: 16px solid #f3f3f3;
+        border-top: 16px solid #3498db;
+        border-radius: 50%;
+        width: 120px;
+        height: 120px;
+        animation: spin 2s linear infinite;
+        margin-left: auto; 
+        margin-right: auto;
+        margin-top: 150px;
+        margin-bottom: 80px;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body>
+  <div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+    <div id="endpoint-monitor">
+      <div class="page-header">
+        <h1>Endpoint Monitor</h1>
+      </div>
+      <!-- Loader element -->
+      <div class="loader" id="loader"></div>
+      <div id="plots-container"></div>
+    </div>
+
+    <script>
+      var client_endpoints = {{ client_endpoints|tojson|safe }};
+      var client_names = {{ client_names|tojson|safe }};
+      
+      // Initially, hide the plots container and show the loader
+      $("#plots-container").hide();
+      $("#loader").show();
+
+      function generateDivs() {
+          client_endpoints.forEach(function(endpoint, index) {
+              var endpointNameDiv = $("<h2>" + client_names[index] + "</h2>");
+              $("#plots-container").append(endpointNameDiv);
+
+              var rowDiv = $("<div class='row-container' id='row-" + endpoint + "'></div>");
+
+              var cpuDiv = $("<div class='chart' id='cpu-" + endpoint + "'></div>");
+              var gpuDiv = $("<div class='chart' id='gpu-" + endpoint + "'></div>");
+              var memoryDiv = $("<div class='chart' id='mem-" + endpoint + "'></div>");
+              var networkDiv = $("<div class='chart' id='network-" + endpoint + "'></div>");
+
+              rowDiv.append(cpuDiv);
+              rowDiv.append(gpuDiv);
+              rowDiv.append(memoryDiv);
+              rowDiv.append(networkDiv);
+
+              $("#plots-container").append(rowDiv);
+              {# $("#plots-container").append("<span>Inactive</span>"); #}
+              
+              // Add a separator line after each endpoint (except the last one)
+              if(index !== client_endpoints.length - 1) {
+                $("#plots-container").append('<hr>');
+              }
+          });
+      }
+
+      generateDivs();
+
+      var endpointData = {};
+
+      function updateCharts() {
+          var layout = {
+              autosize: true, // Make the plot responsive to the parent's size
+              xaxis: {
+                  title: 'Time',
+              },
+              yaxis: {
+                  title: 'Utilization (%)',
+              }
+          };
+          var layout_network = {
+              autosize: true,
+              xaxis: {
+                  title: 'Time',
+              },
+              yaxis: {
+                  title: 'Utilization (Bytes)',
+              },
+              legend: {
+                  x: 0,
+                  y: 1,
+                  traceorder: 'normal',
+                  font: {
+                      family: 'sans-serif',
+                      size: 12,
+                      color: '#000'
+                  },
+                  bgcolor: 'rgba(226, 226, 226, 0.5)',
+                  bordercolor: '#FFFFFF',
+                  borderwidth: 2
+              }
+          };
+          // loop through each endpoint
+          Object.keys(endpointData).forEach(function(endpoint) {
+              // get the data for this endpoint
+              var endpointDataArray = endpointData[endpoint];
+              var cpuData = {
+                  x: endpointDataArray.map(d => d.timestamp),
+                  y: endpointDataArray.map(d => d.data["CPU utilization"]),
+                  mode: 'lines',
+                  name: 'CPU Utilization'
+              };
+              var gpuData = {
+                  x: endpointDataArray.map(d => d.timestamp),
+                  y: endpointDataArray.map(d => d.data["GPU utilization"]),
+                  mode: 'lines',
+                  name: 'GPU Utilization'
+              };
+              var memoryData = {
+                  x: endpointDataArray.map(d => d.timestamp),
+                  y: endpointDataArray.map(d => d.data["Memory utilization"]),
+                  mode: 'lines',
+                  name: 'Memory Utilization'
+              };
+              var networkData = {
+                  x: endpointDataArray.map(d => d.timestamp),
+                  y: endpointDataArray.map(d => d.data["Bytes Sent"]),
+                  mode: 'lines',
+                  name: 'Network Sent'
+              };
+              var networkReceivedData = {
+                  x: endpointDataArray.map(d => d.timestamp),
+                  y: endpointDataArray.map(d => d.data["Bytes Received"]),
+                  mode: 'lines',
+                  name: 'Network Received'
+              };
+
+              // update the corresponding plots with the new data
+              Plotly.react('cpu-' + endpoint, [cpuData], {...layout, title: 'CPU Utilization'});
+              $('#cpu-' + endpoint + ' .loader').remove();
+              Plotly.react('gpu-' + endpoint, [gpuData], {...layout, title: 'GPU Utilization'});
+              $('#gpu-' + endpoint + ' .loader').remove();
+              Plotly.react('mem-' + endpoint, [memoryData], {...layout, title: 'Memory Utilization'});
+              $('#mem-' + endpoint + ' .loader').remove();
+              Plotly.react('network-' + endpoint, [networkData, networkReceivedData], {...layout_network, title: 'Network Usage'});
+              $('#network-' + endpoint + ' .loader').remove();
+
+          });
+      }
+
+      $(document).ready(function(){
+          function updateData() {
+              console.log("update")
+              $.ajax({
+                  url: '/resources_monitor_data',
+                  method: 'POST',
+                  contentType: 'application/json',
+                  data: JSON.stringify({ client_endpoints: client_endpoints }),
+                  dataType: 'json'
+                })
+              .done(function(data) {
+                client_endpoints.forEach(function(endpoint) {
+                    if (!data.hasOwnProperty(endpoint)) {
+                        
+                    } else {
+                        if (!endpointData.hasOwnProperty(endpoint)) {
+                            // Initialize the data array for this endpoint if it's new
+                            endpointData[endpoint] = [];
+                        }
+
+                        // Add the new datapoint
+                        endpointData[endpoint].push({
+                            timestamp: new Date(),
+                            data: data[endpoint]
+                        });
+
+                        // Remove old datapoints if there are more than 100
+                        if (endpointData[endpoint].length > 100) {
+                            endpointData[endpoint].shift();
+                        }
+                    }
+                });
+
+                // Hide the loader and show the plots container
+                $("#loader").hide();
+                $("#plots-container").show();
+
+                // Update the page with the new data here
+                updateCharts();
+              })
+              .fail(function(jqXHR, textStatus, errorThrown) {
+                console.log("Error: ", textStatus, errorThrown);
+              })
+              .always(function() {
+                console.log('AJAX call completed');
+              });
+          }
+
+          updateData();  // Call the function immediately when the page loads
+          // Update the data every 12 seconds
+          var intervalId = setInterval(updateData, 12000);
+
+          window.onbeforeunload = function() {
+            console.log("Window is being closed, clearing interval");
+            clearInterval(intervalId);
+          }
+      });
+      </script>
+    </div>
+  </body>
+</html> 

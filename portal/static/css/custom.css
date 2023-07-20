@@ -94,6 +94,25 @@ h2, .h2 {
     flex-basis: 70%;
 }
 
+.form-group-inline-tight {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+.form-group-inline-tight label {
+    flex-basis: 15%;
+    font-size: small;
+}
+.form-group-inline-tight input {
+    flex-basis: 85%;
+}
+
+.form-group-inline-tight select {
+    flex-basis: 85%;
+}
+
 .form-group-grid {
     display: flex;
     flex-wrap: wrap;
@@ -295,3 +314,11 @@ h2, .h2 {
       display: none;
     }
 }
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  .update-icon-spinning {
+    animation: spin 2s linear infinite;
+  }
