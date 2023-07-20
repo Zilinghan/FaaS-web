@@ -861,37 +861,37 @@ def upload_server_config(server_group_id):
         group_members_str += ','
     group_members_str = group_members_str[:-1]
 
-    # Test Code Updated
-    parameter_dict = {}
-    parameter_dict['group_members'] = group_members_str
-    parameter_dict['server_id'] = server_id
-    parameter_dict['group_id'] = server_group_id
-    parameter_dict['upload_folder'] = app.config["UPLOAD_FOLDER"]
-    parameter_dict['funcx_token'] = session['tokens']['funcx_service']['access_token']
-    parameter_dict['search_token'] = session['tokens']['search.api.globus.org']['access_token']
-    parameter_dict['openid_token'] = session['tokens']['auth.globus.org']['access_token']
-    with open(os.path.join(upload_folder, 'parameter.yaml'), 'w') as f:
-        yaml.dump(parameter_dict, f, default_flow_style=False)
+    # # Test Code Updated
+    # parameter_dict = {}
+    # parameter_dict['group_members'] = group_members_str
+    # parameter_dict['server_id'] = server_id
+    # parameter_dict['group_id'] = server_group_id
+    # parameter_dict['upload_folder'] = app.config["UPLOAD_FOLDER"]
+    # parameter_dict['funcx_token'] = session['tokens']['funcx_service']['access_token']
+    # parameter_dict['search_token'] = session['tokens']['search.api.globus.org']['access_token']
+    # parameter_dict['openid_token'] = session['tokens']['auth.globus.org']['access_token']
+    # with open(os.path.join(upload_folder, 'parameter.yaml'), 'w') as f:
+    #     yaml.dump(parameter_dict, f, default_flow_style=False)
 
-    task_id = 'randomid'
-    model_key        = f'{server_group_id}/{EXP_DIR}/{task_id}/model.py'
-    parameter_fp     = os.path.join(upload_folder, 'parameter.yaml')
-    parameter_key    = f'{server_group_id}/{EXP_DIR}/{task_id}/parameter.yaml'
-    appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')    
-    appfl_config_key = f'{server_group_id}/{EXP_DIR}/{task_id}/appfl_config.yaml'
+    # task_id = 'randomid'
+    # model_key        = f'{server_group_id}/{EXP_DIR}/{task_id}/model.py'
+    # parameter_fp     = os.path.join(upload_folder, 'parameter.yaml')
+    # parameter_key    = f'{server_group_id}/{EXP_DIR}/{task_id}/parameter.yaml'
+    # appfl_config_fp  = os.path.join(upload_folder, 'appfl_config.yaml')    
+    # appfl_config_key = f'{server_group_id}/{EXP_DIR}/{task_id}/appfl_config.yaml'
 
-    if model_fp is not None:
-        if not s3_upload(S3_BUCKET_NAME, model_key, model_fp, delete_local=True):
-            flash("Error: The custom model file is not uploaded successfully!")
-            return redirect(request.referrer)
-    if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
-        flash("Error: The configuration file is not uploaded successfully!")
-        return redirect(request.referrer)
-    if not s3_upload(S3_BUCKET_NAME, parameter_key, parameter_fp, delete_local=True):
-        flash("Error: The parameter file is not uploaded successfully!")
-        return redirect(request.referrer)
-    print(f'The key of the S3 parameter object file is {server_group_id}/{EXP_DIR}')
-    return redirect(url_for('dashboard'))
+    # if model_fp is not None:
+    #     if not s3_upload(S3_BUCKET_NAME, model_key, model_fp, delete_local=True):
+    #         flash("Error: The custom model file is not uploaded successfully!")
+    #         return redirect(request.referrer)
+    # if not s3_upload(S3_BUCKET_NAME, appfl_config_key, appfl_config_fp, delete_local=True):
+    #     flash("Error: The configuration file is not uploaded successfully!")
+    #     return redirect(request.referrer)
+    # if not s3_upload(S3_BUCKET_NAME, parameter_key, parameter_fp, delete_local=True):
+    #     flash("Error: The parameter file is not uploaded successfully!")
+    #     return redirect(request.referrer)
+    # print(f'The key of the S3 parameter object file is {server_group_id}/{EXP_DIR}')
+    # return redirect(url_for('dashboard'))
 
     # Prepare a parameter file for running the server
     parameter_dict = {}
