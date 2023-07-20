@@ -670,7 +670,7 @@
         }
         if (back === false) {
             var modelState = new ModelState();
-            hfPathStack.push(modelState);
+            hfPathStack.push(repoState);
         }
         // Make an AJAX request to get the models
         var modelName = $('#hfModelInput').val();
@@ -704,17 +704,13 @@
     }
 
     function getHfFiles(modelName, path = '', back = false) {
-        var splitModelName = modelName.split('/');
-        var userName = splitModelName[0];
-        var repoName = splitModelName[1];
-
         if (back === false) {
             var hfPathState = new HfPathState(modelName, path)
             hfPathStack.push(hfPathState); 
         }
 
         // Make an AJAX request to get the repository files
-        $.get(`/hugging_face_integration/models/${userName}/${repoName}/${path}`, function(data){
+        $.get(`/hugging_face_integration/models/${modelName}/${path}`, function(data){
             hfFilesArray = data;
             displayHfFiles(modelName, path, data);
         });
@@ -726,17 +722,10 @@
 
         // Add each file or directory to the modal body
         $.each(data, function(index, model) {
-            if (model.includes('.')) {
-                // It's a file
-                $("#hfModalBody").append(`
-                    <a href="#" class="list-group-item list-group-item-action" onclick="selectFile('${modelName}', '${model}');">${model}</a>
-                `);
-            } else {
-                // It's a directory
-                $("#hfModalBody").append(`
-                    <a href="#" class="list-group-item list-group-item-action" onclick="getHfFiles('${modelName}', '${model}');">${model}</a>
-                `);
-            }
+            path = path + '/' + model;
+            $("#hfModalBody").append(`
+                <a href="#" class="list-group-item list-group-item-action" onclick="getHfFiles('${modelName}', '${path}');">${model}</a>
+            `);
         });
     }
 
